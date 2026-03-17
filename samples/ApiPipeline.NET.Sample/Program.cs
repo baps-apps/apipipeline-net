@@ -1,0 +1,75 @@
+using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.OpenTelemetry;
+using Asp.Versioning;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+    .AddCorrelationId()                          // Generates/validates X-Correlation-Id on every request and response
+    .AddRateLimiting(builder.Configuration)      // Configures fixed-window rate limiting to protect against traffic bursts
+    .AddResponseCompression(builder.Configuration) // Enables Brotli/gzip compression for eligible responses
+    .AddResponseCaching(builder.Configuration)   // Enables server-side response caching for GET/HEAD responses
+    .AddSecurityHeaders(builder.Configuration)   // Registers Strict-Transport-Security, X-Content-Type-Options, and Referrer-Policy headers
+    .AddCors(builder.Configuration)              // Registers CORS policies (AllowAll in development, configured in production)
+    .AddApiVersionDeprecation(builder.Configuration) // Adds Deprecation/Sunset headers for deprecated API versions
+    .AddRequestLimits(builder.Configuration)     // Sets maximum request body size limits
+    .AddForwardedHeaders(builder.Configuration)  // Configures trusted proxies for X-Forwarded-For/Proto/Host processing
+    .AddApiPipelineExceptionHandler();           // Registers RFC 7807 Problem Details error responses with correlation ID
+
+// Wires up OpenTelemetry tracing, metrics, and logging exporters
+builder.AddApiPipelineObservability();
+
+// Applies request body size limits at the Kestrel server level
+builder.ConfigureKestrelRequestLimits();
+
+builder.Services.AddAuthorization();             // Registers the ASP.NET Core authorization services
+builder.Services.AddControllers();               // Registers MVC controller services
+builder.Services
+    .AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new ApiVersion(1, 0); // Fall back to v1.0 when no version is specified
+        options.AssumeDefaultVersionWhenUnspecified = true;
+        options.ReportApiVersions = true;                 // Include api-supported-versions header in responses
+        options.ApiVersionReader = new UrlSegmentApiVersionReader(); // Read version from URL path, e.g. /api/v1/orders
+    });
+
+var app = builder.Build();
+
+// Must be first — resolves scheme/IP from proxy headers before any other middleware reads them
+app.UseApiPipelineForwardedHeaders();
+
+// Before exception handler so correlation ID is available in error responses
+app.UseCorrelationId();
+
+// Early in pipeline to catch unhandled exceptions from all downstream middleware
+app.UseApiPipelineExceptionHandler();
+
+// After forwarded headers so the correct scheme is used for the redirect
+app.UseHttpsRedirection();
+
+// Before caching so Vary: Origin is set before the cache key is computed; before rate limiting so preflight requests are not counted
+app.UseCors();
+
+// After CORS — only rate-limit real requests, not browser preflight
+app.UseRateLimiting();
+
+// Before caching so the compressed form is what gets stored and served
+app.UseResponseCompression();
+
+// After compression and CORS to cache correctly keyed, compressed responses
+app.UseResponseCaching();
+
+// Adds security headers via OnStarting; applies to all non-cached responses
+app.UseSecurityHeaders();
+
+// Appends Deprecation/Sunset headers for deprecated API versions
+app.UseApiVersionDeprecation();
+
+// After CORS — authorization checks run on authenticated, origin-validated requests
+app.UseAuthorization();
+
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
+
+app.MapControllers();
+
+app.Run();

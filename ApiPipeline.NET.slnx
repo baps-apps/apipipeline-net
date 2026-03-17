@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/ApiPipeline.NET/ApiPipeline.NET.csproj" />
+  <Project Path="src/ApiPipeline.NET.OpenTelemetry/ApiPipeline.NET.OpenTelemetry.csproj" />
+  <Project Path="tests/ApiPipeline.NET.Tests/ApiPipeline.NET.Tests.csproj" />
+  <Project Path="samples/ApiPipeline.NET.Sample/ApiPipeline.NET.Sample.csproj" />
+</Solution>

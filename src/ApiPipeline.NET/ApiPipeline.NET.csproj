@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Library</OutputType>
+    <IsPackable>true</IsPackable>
+    <EnableSourceLink>true</EnableSourceLink>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageId>ApiPipeline.NET</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>BAPS Dev Team</Authors>
+    <Description>Shared ASP.NET Core API pipeline (rate limiting, compression, caching, security headers, CORS, correlation ID, API version deprecation, request limits).</Description>
+    <PackageTags>aspnetcore;api;pipeline;middleware;ratelimiting;compression;caching;security-headers;cors;correlation-id;api-versioning;kestrel;request-limits;forwarded-headers;exception-handling;problemdetails;observability</PackageTags>
+    <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/baps-apps/apipipeline-net.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="CodeStyle.NET" />
+  </ItemGroup>
+</Project>
