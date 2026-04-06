@@ -60,13 +60,14 @@ public static class WebApplicationExtensions
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
     public static WebApplication UseResponseCompression(this WebApplication app)
     {
-        var settings = app.Services.GetRequiredService<IOptions<ResponseCompressionSettings>>().Value;
-        if (!settings.Enabled)
+        var monitor = app.Services.GetRequiredService<IOptionsMonitor<ResponseCompressionSettings>>();
+
+        if (!monitor.CurrentValue.Enabled)
         {
             return app;
         }
 
-        if (settings.EnableForHttps)
+        if (monitor.CurrentValue.EnableForHttps)
         {
             var logger = app.Services.GetRequiredService<ILoggerFactory>()
                 .CreateLogger("ApiPipeline.NET.ResponseCompression");
@@ -75,10 +76,9 @@ public static class WebApplicationExtensions
                 "attacker-controlled input with secrets in the same compressed response (BREACH/CRIME risk).");
         }
 
-        // Pre-compute PathString[] once at registration — avoids per-request LINQ allocation
-        var excludedPaths = (settings.ExcludedPaths ?? [])
-            .Select(p => new PathString(p))
-            .ToArray();
+        // Pre-compute excluded paths once; use OnChange to invalidate when config reloads
+        var excludedPaths = ComputeExcludedPaths(monitor.CurrentValue);
+        monitor.OnChange(settings => excludedPaths = ComputeExcludedPaths(settings));
 
         if (excludedPaths.Length == 0)
         {
@@ -89,8 +89,9 @@ public static class WebApplicationExtensions
         app.UseWhen(
             context =>
             {
+                var current = excludedPaths; // capture reference (array swap is atomic)
                 var path = context.Request.Path;
-                foreach (var excluded in excludedPaths)
+                foreach (var excluded in current)
                 {
                     if (path.StartsWithSegments(excluded, StringComparison.OrdinalIgnoreCase))
                     {
@@ -103,6 +104,11 @@ public static class WebApplicationExtensions
 
         return app;
     }
+
+    private static PathString[] ComputeExcludedPaths(ResponseCompressionSettings settings) =>
+        (settings.ExcludedPaths ?? [])
+            .Select(p => new PathString(p))
+            .ToArray();
 
     /// <summary>
     /// Enables response caching when <see cref="ResponseCachingSettings.Enabled"/> is true.
