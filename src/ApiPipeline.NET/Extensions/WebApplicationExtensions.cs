@@ -1,7 +1,9 @@
 using System.Net;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Extensions;
@@ -52,10 +54,31 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        var excluded = settings.ExcludedPaths ?? [];
+        // Pre-compute PathString[] once at registration — avoids per-request LINQ allocation
+        var excludedPaths = (settings.ExcludedPaths ?? [])
+            .Select(p => new PathString(p))
+            .ToArray();
+
+        if (excludedPaths.Length == 0)
+        {
+            ((IApplicationBuilder)app).UseResponseCompression();
+            return app;
+        }
+
         app.UseWhen(
-            context => !excluded.Any(p => context.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)),
-            branch => branch.UseResponseCompression());
+            context =>
+            {
+                var path = context.Request.Path;
+                foreach (var excluded in excludedPaths)
+                {
+                    if (path.StartsWithSegments(excluded, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            },
+            branch => ((IApplicationBuilder)branch).UseResponseCompression());
 
         return app;
     }
@@ -73,7 +96,7 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        app.UseResponseCaching();
+        ((IApplicationBuilder)app).UseResponseCaching();
         return app;
     }
 
@@ -126,6 +149,13 @@ public static class WebApplicationExtensions
     /// registered by <see cref="ServiceCollectionExtensions.AddApiPipelineExceptionHandler"/>.
     /// Produces RFC 7807 error responses with correlation ID and trace ID.
     /// Place this early in the pipeline, after <c>UseCorrelationId</c>.
+    /// <para>
+    /// <b>Required pipeline order:</b>
+    /// <c>UseCorrelationId</c> → <c>UseApiPipelineExceptionHandler</c> → ... →
+    /// <c>UseAuthentication</c> → <c>UseAuthorization</c> → <c>UseResponseCaching</c>.
+    /// Placing <c>UseResponseCaching</c> before <c>UseAuthorization</c> creates an auth-bypass
+    /// risk where cached responses are served without checking credentials.
+    /// </para>
     /// </summary>
     /// <param name="app">The web application to configure.</param>
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
@@ -155,9 +185,26 @@ public static class WebApplicationExtensions
             return app;
         }
 
+        var logger = app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("ApiPipeline.NET.ForwardedHeaders");
+
+        if (!settings.ClearDefaultProxies
+            && (settings.KnownProxies is null || settings.KnownProxies.Length == 0)
+            && (settings.KnownNetworks is null || settings.KnownNetworks.Length == 0))
+        {
+            logger.LogWarning(
+                "ForwardedHeaders is enabled but no KnownProxies or KnownNetworks are configured " +
+                "and ClearDefaultProxies is false. Behind a reverse proxy (Kubernetes, Nginx, ALB), " +
+                "X-Forwarded-For will be ignored and RemoteIpAddress will be the proxy IP. " +
+                "This collapses rate-limiting into a single shared bucket for all clients. " +
+                "Set ClearDefaultProxies: true and configure KnownNetworks for your deployment.");
+        }
+
         var options = new ForwardedHeadersOptions
         {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                             | ForwardedHeaders.XForwardedProto
+                             | ForwardedHeaders.XForwardedHost,
             ForwardLimit = settings.ForwardLimit
         };
 
@@ -175,6 +222,11 @@ public static class WebApplicationExtensions
                 {
                     options.KnownProxies.Add(ip);
                 }
+                else
+                {
+                    logger.LogWarning(
+                        "ForwardedHeaders: invalid KnownProxy IP address '{Proxy}' — skipped.", proxy);
+                }
             }
         }
 
@@ -183,9 +235,26 @@ public static class WebApplicationExtensions
             foreach (var network in settings.KnownNetworks)
             {
                 var parts = network.Split('/');
-                if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
+                if (parts.Length == 2
+                    && IPAddress.TryParse(parts[0], out var prefix)
+                    && int.TryParse(parts[1], out var prefixLength))
                 {
+                    var maxPrefix = prefix.AddressFamily ==
+                        System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32;
+                    if (prefixLength < 0 || prefixLength > maxPrefix)
+                    {
+                        logger.LogWarning(
+                            "ForwardedHeaders: invalid CIDR prefix length in '{Network}' " +
+                            "(must be 0–{Max}) — skipped.", network, maxPrefix);
+                        continue;
+                    }
                     options.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ForwardedHeaders: could not parse KnownNetwork '{Network}' " +
+                        "as a valid CIDR — skipped.", network);
                 }
             }
         }

@@ -41,4 +41,36 @@ public sealed class SecurityHeadersSettings
     /// Whether <c>includeSubDomains</c> is appended to the HSTS header.
     /// </summary>
     public bool StrictTransportSecurityIncludeSubDomains { get; set; } = true;
+
+    /// <summary>
+    /// Whether to append the <c>preload</c> directive to the HSTS header.
+    /// Only effective when <see cref="EnableStrictTransportSecurity"/> is <c>true</c>.
+    /// Ensure all subdomains support HTTPS before enabling.
+    /// </summary>
+    public bool StrictTransportSecurityPreload { get; set; } = false;
+
+    /// <summary>
+    /// Indicates whether the <c>X-Frame-Options</c> header is added to prevent clickjacking.
+    /// Defaults to <c>true</c> with value <c>DENY</c>.
+    /// </summary>
+    public bool AddXFrameOptions { get; set; } = true;
+
+    /// <summary>
+    /// The value of the <c>X-Frame-Options</c> header. Valid values: <c>DENY</c>, <c>SAMEORIGIN</c>.
+    /// </summary>
+    public string XFrameOptionsValue { get; set; } = "DENY";
+
+    /// <summary>
+    /// The value of the <c>Content-Security-Policy</c> header.
+    /// Set to <c>null</c> (default) to omit the header.
+    /// For browser-facing APIs, a policy such as <c>default-src 'none'</c> is recommended.
+    /// </summary>
+    public string? ContentSecurityPolicy { get; set; } = null;
+
+    /// <summary>
+    /// The value of the <c>Permissions-Policy</c> header.
+    /// Set to <c>null</c> (default) to omit the header.
+    /// Example: <c>camera=(), microphone=(), geolocation=()</c>.
+    /// </summary>
+    public string? PermissionsPolicy { get; set; } = null;
 }

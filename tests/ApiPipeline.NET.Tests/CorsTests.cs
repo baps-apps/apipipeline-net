@@ -105,6 +105,21 @@ public sealed class CorsTests
     }
 
     /// <summary>
+    /// Verifies that the default value of <see cref="ApiPipeline.NET.Options.CorsSettings.AllowedHeaders"/>
+    /// is a safe explicit list and does not include a wildcard.
+    /// </summary>
+    [Fact]
+    public void CorsSettings_Default_AllowedHeaders_Does_Not_Include_Wildcard()
+    {
+        var settings = new ApiPipeline.NET.Options.CorsSettings();
+
+        settings.AllowedHeaders.Should().NotContain("*");
+        settings.AllowedHeaders.Should().Contain("Content-Type");
+        settings.AllowedHeaders.Should().Contain("Authorization");
+        settings.AllowedHeaders.Should().Contain("X-Correlation-Id");
+    }
+
+    /// <summary>
     /// Verifies that an OPTIONS preflight request receives <c>Access-Control-Allow-Origin</c>
     /// and <c>Access-Control-Allow-Methods</c> headers, confirming that the CORS policy
     /// handles preflight negotiation correctly.
