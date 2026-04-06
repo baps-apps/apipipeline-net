@@ -75,6 +75,9 @@ public sealed partial class CorrelationIdMiddleware
         ApiPipelineTelemetry.SetCorrelationIdOnCurrentActivity(correlationId);
         ApiPipelineTelemetry.RecordCorrelationIdProcessed();
 
-        await _next(context);
+        using (_logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+        {
+            await _next(context);
+        }
     }
 }
