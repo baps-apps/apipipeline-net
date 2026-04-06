@@ -2,6 +2,7 @@ using System.Net;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Extensions;
@@ -162,9 +163,14 @@ public static class WebApplicationExtensions
             return app;
         }
 
+        var logger = app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("ApiPipeline.NET.ForwardedHeaders");
+
         var options = new ForwardedHeadersOptions
         {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                             | ForwardedHeaders.XForwardedProto
+                             | ForwardedHeaders.XForwardedHost,
             ForwardLimit = settings.ForwardLimit
         };
 
@@ -182,6 +188,11 @@ public static class WebApplicationExtensions
                 {
                     options.KnownProxies.Add(ip);
                 }
+                else
+                {
+                    logger.LogWarning(
+                        "ForwardedHeaders: invalid KnownProxy IP address '{Proxy}' — skipped.", proxy);
+                }
             }
         }
 
@@ -190,9 +201,26 @@ public static class WebApplicationExtensions
             foreach (var network in settings.KnownNetworks)
             {
                 var parts = network.Split('/');
-                if (parts.Length == 2 && IPAddress.TryParse(parts[0], out var prefix) && int.TryParse(parts[1], out var prefixLength))
+                if (parts.Length == 2
+                    && IPAddress.TryParse(parts[0], out var prefix)
+                    && int.TryParse(parts[1], out var prefixLength))
                 {
+                    var maxPrefix = prefix.AddressFamily ==
+                        System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32;
+                    if (prefixLength < 0 || prefixLength > maxPrefix)
+                    {
+                        logger.LogWarning(
+                            "ForwardedHeaders: invalid CIDR prefix length in '{Network}' " +
+                            "(must be 0–{Max}) — skipped.", network, maxPrefix);
+                        continue;
+                    }
                     options.KnownIPNetworks.Add(new System.Net.IPNetwork(prefix, prefixLength));
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ForwardedHeaders: could not parse KnownNetwork '{Network}' " +
+                        "as a valid CIDR — skipped.", network);
                 }
             }
         }

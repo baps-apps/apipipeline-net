@@ -155,4 +155,56 @@ public sealed class ForwardedHeadersTests
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("198.51.100.1");
     }
+
+    /// <summary>
+    /// Verifies that an out-of-range CIDR prefix length (e.g. "10.0.0.0/999") is skipped
+    /// gracefully with a warning rather than throwing at startup or on first request.
+    /// </summary>
+    [Fact]
+    public async Task UseApiPipelineForwardedHeaders_Invalid_CIDR_Does_Not_Throw()
+    {
+        // An out-of-range prefix length must be skipped gracefully, not throw
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ForwardedHeadersOptions:Enabled"] = "true";
+            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
+            c["ForwardedHeadersOptions:KnownNetworks:0"] = "10.0.0.0/999";  // invalid prefix
+            c["ForwardedHeadersOptions:KnownNetworks:1"] = "10.0.0.0/8";    // valid prefix
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseApiPipelineForwardedHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+
+        // Must not throw on startup or first request
+        await app.StartAsync();
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/test");
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+    }
+
+    /// <summary>
+    /// Verifies that an unparseable <c>KnownProxies</c> entry is skipped gracefully with a
+    /// warning rather than throwing at startup or on first request.
+    /// </summary>
+    [Fact]
+    public async Task UseApiPipelineForwardedHeaders_Invalid_ProxyIp_Does_Not_Throw()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ForwardedHeadersOptions:Enabled"] = "true";
+            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
+            c["ForwardedHeadersOptions:KnownProxies:0"] = "not-an-ip-address"; // invalid
+            c["ForwardedHeadersOptions:KnownProxies:1"] = "10.0.0.1";          // valid
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseApiPipelineForwardedHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/test");
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+    }
 }
