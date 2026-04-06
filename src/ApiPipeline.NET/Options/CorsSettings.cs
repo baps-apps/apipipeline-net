@@ -33,9 +33,11 @@ public sealed class CorsSettings
 
     /// <summary>
     /// The set of allowed request headers. A value containing <c>"*"</c> permits any header.
+    /// Defaults to a minimal explicit list covering typical API use cases.
+    /// Set to <c>["*"]</c> explicitly if unrestricted headers are required.
     /// </summary>
     [MinLength(0)]
-    public string[]? AllowedHeaders { get; set; } = ["*"];
+    public string[]? AllowedHeaders { get; set; } = ["Content-Type", "Authorization", "X-Correlation-Id"];
 
     /// <summary>
     /// Indicates whether credentials are allowed on CORS requests.
