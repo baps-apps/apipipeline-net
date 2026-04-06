@@ -113,7 +113,6 @@ public sealed class SecurityHeadersMiddleware
             headers["Permissions-Policy"] = settings.PermissionsPolicy;
         }
 
-        ApiPipelineTelemetry.RecordSecurityHeadersApplied();
         logger.LogDebug("Security headers applied to response");
     }
 }

@@ -1,3 +1,4 @@
+using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -46,7 +47,11 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
         }
         else
         {
-            builder.SetIsOriginAllowed(_ => false);
+            builder.SetIsOriginAllowed(origin =>
+            {
+                ApiPipelineTelemetry.RecordCorsRejected();
+                return false;
+            });
         }
 
         if (settings.AllowedMethods is { Length: > 0 } && !settings.AllowedMethods.Contains("*"))
