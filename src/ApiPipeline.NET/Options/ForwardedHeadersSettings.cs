@@ -25,9 +25,11 @@ public sealed class ForwardedHeadersSettings
     /// <summary>
     /// Maximum number of proxy entries to process from <c>X-Forwarded-For</c>.
     /// Set to the number of trusted proxies in front of the application.
+    /// Common topologies: single reverse proxy = 1, Nginx Ingress on Kubernetes = 2,
+    /// CloudFront → ALB → Nginx → Pod = 3-4. Maximum 20.
     /// Defaults to <c>1</c>.
     /// </summary>
-    [Range(1, 10)]
+    [Range(1, 20)]
     public int ForwardLimit { get; set; } = 1;
 
     /// <summary>

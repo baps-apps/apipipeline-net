@@ -316,4 +316,84 @@ public sealed class OptionsValidationTests
         var act = () => app.StartAsync();
         await act.Should().NotThrowAsync();
     }
+
+    /// <summary>
+    /// Verifies that MaxRequestBodySize = 0 is rejected at startup when limits are enabled.
+    /// A zero-byte body limit silently rejects all POST/PUT/PATCH requests.
+    /// </summary>
+    [Fact]
+    public async Task RequestLimits_MaxRequestBodySize_Zero_Fails_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RequestLimitsOptions:Enabled"] = "true";
+            c["RequestLimitsOptions:MaxRequestBodySize"] = "0";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage("*MaxRequestBodySize*");
+    }
+
+    /// <summary>
+    /// Verifies that MaxRequestHeadersTotalSize = 0 is rejected at startup when limits are enabled.
+    /// </summary>
+    [Fact]
+    public async Task RequestLimits_MaxRequestHeadersTotalSize_Zero_Fails_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RequestLimitsOptions:Enabled"] = "true";
+            c["RequestLimitsOptions:MaxRequestHeadersTotalSize"] = "0";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage("*MaxRequestHeadersTotalSize*");
+    }
+
+    /// <summary>
+    /// Verifies that a positive MaxRequestBodySize passes validation.
+    /// </summary>
+    [Fact]
+    public async Task RequestLimits_MaxRequestBodySize_Positive_Passes_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RequestLimitsOptions:Enabled"] = "true";
+            c["RequestLimitsOptions:MaxRequestBodySize"] = "10485760"; // 10 MB
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>
+    /// Verifies ForwardLimit accepts values up to 20 to support complex proxy topologies
+    /// (CloudFront → WAF → ALB → Nginx Ingress → Pod = 4 hops minimum in AWS).
+    /// </summary>
+    [Fact]
+    public async Task ForwardedHeaders_ForwardLimit_15_Passes_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ForwardedHeadersOptions:Enabled"] = "true";
+            c["ForwardedHeadersOptions:ForwardLimit"] = "15";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().NotThrowAsync();
+    }
 }
