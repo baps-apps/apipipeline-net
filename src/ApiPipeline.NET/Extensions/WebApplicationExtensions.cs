@@ -157,7 +157,6 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        string policyName;
         if (env.IsDevelopment() && settings.AllowAllInDevelopment)
         {
             var logger = app.Services.GetRequiredService<ILoggerFactory>()
@@ -165,14 +164,10 @@ public static class WebApplicationExtensions
             logger.LogWarning(
                 "CORS: AllowAll policy is active (AllowAllInDevelopment=true). " +
                 "All origins, methods, and headers are allowed. Do not use in production.");
-            policyName = CorsPolicyNames.AllowAll;
-        }
-        else
-        {
-            policyName = CorsPolicyNames.Configured;
         }
 
-        app.UseCors(policyName);
+        // LiveConfigCorsPolicyProvider handles policy selection per-request
+        ((IApplicationBuilder)app).UseCors();
         return app;
     }
 

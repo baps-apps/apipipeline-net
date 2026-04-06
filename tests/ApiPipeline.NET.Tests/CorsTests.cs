@@ -161,4 +161,52 @@ public sealed class CorsTests
         settings.AllowAllInDevelopment.Should().BeFalse(
             "wildcard CORS must be explicit opt-in to avoid accidental exposure in staging");
     }
+
+    /// <summary>
+    /// Verifies that an origin explicitly listed in AllowedOrigins is accepted.
+    /// </summary>
+    [Fact]
+    public async Task Cors_Allows_Configured_Origin()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["CorsOptions:Enabled"] = "true";
+            c["CorsOptions:AllowedOrigins:0"] = "https://trusted.example.com";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseCors();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/test");
+        request.Headers.Add("Origin", "https://trusted.example.com");
+
+        var response = await client.SendAsync(request);
+        response.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Verifies that an origin NOT in AllowedOrigins is rejected (no ACAO header).
+    /// </summary>
+    [Fact]
+    public async Task Cors_Rejects_Unknown_Origin()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["CorsOptions:Enabled"] = "true";
+            c["CorsOptions:AllowedOrigins:0"] = "https://trusted.example.com";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseCors();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/test");
+        request.Headers.Add("Origin", "https://evil.attacker.com");
+
+        var response = await client.SendAsync(request);
+        response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
 }

@@ -3,12 +3,14 @@ using System.IO.Compression;
 using System.Net.Mime;
 using System.Threading.RateLimiting;
 using ApiPipeline.NET.Configuration;
+using ApiPipeline.NET.Cors;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.ResponseCaching;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -408,52 +410,9 @@ public static class ServiceCollectionExtensions
                 "When AllowCredentials is true, AllowedOrigins must be configured (CORS does not allow wildcard origin with credentials).")
             .ValidateOnStart();
 
-        var corsSettings = new CorsSettings();
-        configuration.GetSection(ApiPipelineConfigurationKeys.Cors).Bind(corsSettings);
-
-        services.AddCors(corsOptions =>
-        {
-            if (corsSettings.AllowAllInDevelopment)
-            {
-                corsOptions.AddPolicy(CorsPolicyNames.AllowAll, policy =>
-                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-            }
-
-            corsOptions.AddPolicy(CorsPolicyNames.Configured, policy =>
-            {
-                if (corsSettings.AllowedOrigins is { Length: > 0 })
-                {
-                    policy.WithOrigins(corsSettings.AllowedOrigins);
-                }
-                else
-                {
-                    policy.SetIsOriginAllowed(_ => false);
-                }
-
-                if (corsSettings.AllowedMethods is { Length: > 0 } && !corsSettings.AllowedMethods.Contains("*"))
-                {
-                    policy.WithMethods(corsSettings.AllowedMethods);
-                }
-                else
-                {
-                    policy.AllowAnyMethod();
-                }
-
-                if (corsSettings.AllowedHeaders is { Length: > 0 } && !corsSettings.AllowedHeaders.Contains("*"))
-                {
-                    policy.WithHeaders(corsSettings.AllowedHeaders);
-                }
-                else
-                {
-                    policy.AllowAnyHeader();
-                }
-
-                if (corsSettings.AllowCredentials)
-                {
-                    policy.AllowCredentials();
-                }
-            });
-        });
+        // Register the live-config provider and the basic CORS services it depends on
+        services.AddCors();
+        services.AddSingleton<ICorsPolicyProvider, LiveConfigCorsPolicyProvider>();
 
         return services;
     }
