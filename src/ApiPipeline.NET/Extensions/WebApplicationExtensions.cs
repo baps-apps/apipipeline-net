@@ -166,6 +166,18 @@ public static class WebApplicationExtensions
         var logger = app.Services.GetRequiredService<ILoggerFactory>()
             .CreateLogger("ApiPipeline.NET.ForwardedHeaders");
 
+        if (!settings.ClearDefaultProxies
+            && (settings.KnownProxies is null || settings.KnownProxies.Length == 0)
+            && (settings.KnownNetworks is null || settings.KnownNetworks.Length == 0))
+        {
+            logger.LogWarning(
+                "ForwardedHeaders is enabled but no KnownProxies or KnownNetworks are configured " +
+                "and ClearDefaultProxies is false. Behind a reverse proxy (Kubernetes, Nginx, ALB), " +
+                "X-Forwarded-For will be ignored and RemoteIpAddress will be the proxy IP. " +
+                "This collapses rate-limiting into a single shared bucket for all clients. " +
+                "Set ClearDefaultProxies: true and configure KnownNetworks for your deployment.");
+        }
+
         var options = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor
