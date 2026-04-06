@@ -28,6 +28,7 @@ public sealed class ApiPipelineSmokeTests
         await using var app = await TestAppBuilder.CreateAppAsync(new Dictionary<string, string?>
         {
             ["RateLimitingOptions:Enabled"] = "true",
+            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
             ["RateLimitingOptions:DefaultPolicy"] = "permissive",
             ["RateLimitingOptions:Policies:0:Name"] = "strict",
             ["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow",
@@ -83,6 +84,7 @@ public sealed class ApiPipelineSmokeTests
         await using var app = await TestAppBuilder.CreateAppAsync(new Dictionary<string, string?>
         {
             ["RateLimitingOptions:Enabled"] = "true",
+            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
             ["RateLimitingOptions:DefaultPolicy"] = "strict",
             ["RateLimitingOptions:Policies:0:Name"] = "strict",
             ["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow",

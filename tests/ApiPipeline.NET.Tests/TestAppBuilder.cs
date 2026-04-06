@@ -54,6 +54,9 @@ internal static class TestAppBuilder
         var config = new Dictionary<string, string?>
         {
             ["RateLimitingOptions:Enabled"] = "false",
+            // TestHost does not set RemoteIpAddress — use shared bucket so rate-limit tests
+            // exercise permit limits rather than hitting the null-IP Reject guard.
+            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
             ["ResponseCompressionOptions:Enabled"] = "false",
             ["ResponseCachingOptions:Enabled"] = "false",
             ["SecurityHeaders:Enabled"] = "false",

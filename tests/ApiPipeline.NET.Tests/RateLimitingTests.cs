@@ -252,4 +252,15 @@ public sealed class RateLimitingTests
         json.RootElement.TryGetProperty("traceId", out var traceId).Should().BeTrue();
         traceId.GetString().Should().NotBeNullOrWhiteSpace();
     }
+
+    /// <summary>
+    /// Verifies that AnonymousFallback defaults to Reject.
+    /// The default must prevent shared-bucket DoS when RemoteIpAddress is null.
+    /// </summary>
+    [Fact]
+    public void RateLimitingOptions_AnonymousFallback_DefaultIs_Reject()
+    {
+        var options = new ApiPipeline.NET.Options.RateLimitingOptions();
+        options.AnonymousFallback.Should().Be(ApiPipeline.NET.Options.AnonymousFallbackBehavior.Reject);
+    }
 }

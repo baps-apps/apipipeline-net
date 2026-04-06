@@ -212,8 +212,8 @@ public static class ServiceCollectionExtensions
                 var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
                 var policy = ResolvePolicy(options, options.DefaultPolicy);
                 return policy is not null
-                    ? CreateRateLimiterPartition(httpContext, policy)
-                    : RateLimitPartition.GetNoLimiter(GetPartitionKey(httpContext));
+                    ? GetPartitionOrFallback(httpContext, options, policy)
+                    : RateLimitPartition.GetNoLimiter("no-policy");
             });
 
             // Register all named policies from configuration so endpoints can call RequireRateLimiting("<policy-name>").
@@ -233,8 +233,8 @@ public static class ServiceCollectionExtensions
                         var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
                         var runtimePolicy = ResolvePolicy(options, policyName);
                         return runtimePolicy is not null
-                            ? CreateRateLimiterPartition(httpContext, runtimePolicy)
-                            : RateLimitPartition.GetNoLimiter(GetPartitionKey(httpContext));
+                            ? GetPartitionOrFallback(httpContext, options, runtimePolicy)
+                            : RateLimitPartition.GetNoLimiter("no-policy");
                     });
                 }
             }
@@ -243,8 +243,48 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static RateLimitPartition<string> CreateRateLimiterPartition(HttpContext httpContext, RateLimitPolicy policy) =>
-        CreateRateLimiterPartition(GetPartitionKey(httpContext), policy);
+    private static RateLimitPartition<string> GetPartitionOrFallback(
+        HttpContext context,
+        RateLimitingOptions options,
+        RateLimitPolicy policy)
+    {
+        var userId = context.User?.Identity?.IsAuthenticated == true
+            ? context.User.FindFirst("sub")?.Value
+              ?? context.User.FindFirst("nameid")?.Value
+              ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return CreateRateLimiterPartition($"user:{userId}", policy);
+        }
+
+        var ip = context.Connection.RemoteIpAddress?.ToString();
+        if (!string.IsNullOrWhiteSpace(ip))
+        {
+            return CreateRateLimiterPartition($"ip:{ip}", policy);
+        }
+
+        // RemoteIpAddress is null — apply AnonymousFallback behaviour
+        return options.AnonymousFallback switch
+        {
+            AnonymousFallbackBehavior.Reject =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    "ip:null:reject",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 0,
+                        Window = TimeSpan.FromSeconds(1),
+                        QueueLimit = 0
+                    }),
+
+            AnonymousFallbackBehavior.Allow =>
+                RateLimitPartition.GetNoLimiter("ip:null:allow"),
+
+            _ => // RateLimit — shared bucket (legacy, documented risk)
+                CreateRateLimiterPartition("ip:anonymous", policy)
+        };
+    }
 
     private static RateLimitPartition<string> CreateRateLimiterPartition(string partitionKey, RateLimitPolicy policy) =>
         policy.Kind switch
@@ -305,35 +345,6 @@ public static class ServiceCollectionExtensions
 
         return options.Policies.FirstOrDefault(p =>
             string.Equals(p.Name, policyName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// Resolves a stable partition key for rate limiting. Order of preference:
-    /// authenticated user ID, remote IP, then a shared "anonymous" fallback.
-    /// The anonymous bucket is shared by design — configure forwarded headers
-    /// (via <see cref="ForwardedHeadersSettings"/>) to ensure <c>RemoteIpAddress</c>
-    /// is populated behind reverse proxies.
-    /// </summary>
-    private static string GetPartitionKey(HttpContext context)
-    {
-        var userId = context.User?.Identity?.IsAuthenticated == true
-            ? context.User.FindFirst("sub")?.Value
-              ?? context.User.FindFirst("nameid")?.Value
-              ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            : null;
-
-        if (!string.IsNullOrWhiteSpace(userId))
-        {
-            return $"user:{userId}";
-        }
-
-        var ip = context.Connection.RemoteIpAddress?.ToString();
-        if (!string.IsNullOrWhiteSpace(ip))
-        {
-            return $"ip:{ip}";
-        }
-
-        return "ip:anonymous";
     }
 
     internal static IServiceCollection ConfigureResponseCompression(this IServiceCollection services, IConfiguration configuration)

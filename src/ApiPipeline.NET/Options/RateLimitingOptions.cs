@@ -4,6 +4,31 @@ using System.Threading.RateLimiting;
 namespace ApiPipeline.NET.Options;
 
 /// <summary>
+/// Controls rate-limiting behaviour when the client IP address cannot be determined
+/// (e.g. <c>RemoteIpAddress</c> is null because forwarded headers are misconfigured).
+/// </summary>
+public enum AnonymousFallbackBehavior
+{
+    /// <summary>
+    /// Reject the request with HTTP 429 immediately. Safe default — prevents
+    /// a single unknown client from exhausting a shared "anonymous" bucket.
+    /// </summary>
+    Reject,
+
+    /// <summary>
+    /// Apply rate limiting using a single shared "anonymous" bucket.
+    /// Warning: one client can exhaust this bucket for all anonymous traffic.
+    /// </summary>
+    RateLimit,
+
+    /// <summary>
+    /// Skip rate limiting for requests with no determinable IP.
+    /// Only use when you have an alternate enforcement mechanism upstream.
+    /// </summary>
+    Allow
+}
+
+/// <summary>
 /// Configuration options for global and named ASP.NET Core rate limiting policies.
 /// Validation is conditional: when <see cref="Enabled"/> is false, policy configuration is not required.
 /// </summary>
@@ -23,6 +48,12 @@ public sealed class RateLimitingOptions : IValidatableObject
     /// The set of named rate limiting policies that can be applied to requests.
     /// </summary>
     public List<RateLimitPolicy> Policies { get; set; } = new();
+
+    /// <summary>
+    /// Controls what happens when <c>RemoteIpAddress</c> is null (e.g. misconfigured forwarded headers).
+    /// Defaults to <see cref="AnonymousFallbackBehavior.Reject"/> to prevent shared-bucket exhaustion.
+    /// </summary>
+    public AnonymousFallbackBehavior AnonymousFallback { get; set; } = AnonymousFallbackBehavior.Reject;
 
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
