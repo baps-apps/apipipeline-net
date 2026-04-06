@@ -1,7 +1,3 @@
-using ApiPipeline.NET.Configuration;
-using ApiPipeline.NET.Options;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-
 namespace ApiPipeline.NET.Extensions;
 
 /// <summary>
@@ -10,54 +6,19 @@ namespace ApiPipeline.NET.Extensions;
 public static class WebApplicationBuilderExtensions
 {
     /// <summary>
-    /// Configures Kestrel request limits based on <see cref="RequestLimitsOptions"/> in configuration.
-    /// Also suppresses the <c>Server</c> response header when
-    /// <see cref="ForwardedHeadersSettings.SuppressServerHeader"/> is <c>true</c> (default)
-    /// to prevent server fingerprinting.
-    /// Options are validated at startup when <see cref="ServiceCollectionExtensions.AddRequestLimits"/> is used.
+    /// <para><b>Deprecated.</b> Kestrel request limits are now applied automatically via
+    /// <see cref="ServiceCollectionExtensions.AddRequestLimits"/>, which registers
+    /// an <c>IConfigureOptions&lt;KestrelServerOptions&gt;</c> backed by validated options.</para>
+    /// <para>Remove this call — it is now a no-op.</para>
     /// </summary>
-    /// <param name="builder">The application builder to configure.</param>
-    /// <returns>The same <see cref="WebApplicationBuilder"/> instance for chaining.</returns>
+    [Obsolete(
+        "ConfigureKestrelRequestLimits is no longer needed. Request limits are applied automatically " +
+        "when AddRequestLimits is called. Remove this call from your startup code.",
+        error: false)]
     public static WebApplicationBuilder ConfigureKestrelRequestLimits(this WebApplicationBuilder builder)
     {
-        var requestLimits = new RequestLimitsOptions();
-        builder.Configuration.GetSection(ApiPipelineConfigurationKeys.RequestLimits).Bind(requestLimits);
-
-        var forwardedHeaders = new ForwardedHeadersSettings();
-        builder.Configuration.GetSection(ApiPipelineConfigurationKeys.ForwardedHeaders).Bind(forwardedHeaders);
-
-        builder.WebHost.ConfigureKestrel((context, kestrel) =>
-        {
-            if (forwardedHeaders.SuppressServerHeader)
-            {
-                kestrel.AddServerHeader = false;
-            }
-
-            if (requestLimits.Enabled)
-            {
-                ApplyLimits(requestLimits, kestrel.Limits);
-            }
-        });
-
+        // No-op: limits are now configured via IConfigureOptions<KestrelServerOptions>
+        // registered by AddRequestLimits. This method is retained for backwards compatibility.
         return builder;
     }
-
-    private static void ApplyLimits(RequestLimitsOptions options, KestrelServerLimits limits)
-    {
-        if (options.MaxRequestBodySize is { } maxBody)
-        {
-            limits.MaxRequestBodySize = maxBody;
-        }
-
-        if (options.MaxRequestHeadersTotalSize is { } maxHeadersTotal)
-        {
-            limits.MaxRequestHeadersTotalSize = maxHeadersTotal;
-        }
-
-        if (options.MaxRequestHeaderCount is { } maxHeaderCount)
-        {
-            limits.MaxRequestHeaderCount = maxHeaderCount;
-        }
-    }
 }
-

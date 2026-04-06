@@ -8,6 +8,7 @@ using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.AspNetCore.ResponseCaching;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -487,6 +488,10 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(ApiPipelineConfigurationKeys.RequestLimits))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        // Register Kestrel configuration via validated options (replaces ConfigureKestrelRequestLimits)
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IConfigureOptions<KestrelServerOptions>, ConfigureKestrelOptions>());
 
         return services;
     }

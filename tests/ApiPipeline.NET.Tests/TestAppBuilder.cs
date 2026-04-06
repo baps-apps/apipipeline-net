@@ -42,8 +42,6 @@ internal static class TestAppBuilder
             builder.Services.AddApiPipelineExceptionHandler();
         }
 
-        builder.ConfigureKestrelRequestLimits();
-
         var app = builder.Build();
         await Task.Yield();
         return app;
