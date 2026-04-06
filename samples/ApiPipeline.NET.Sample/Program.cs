@@ -22,6 +22,7 @@ builder.AddApiPipelineObservability();
 // Applies request body size limits at the Kestrel server level
 builder.ConfigureKestrelRequestLimits();
 
+builder.Services.AddAuthentication();            // Registers the ASP.NET Core authentication services
 builder.Services.AddAuthorization();             // Registers the ASP.NET Core authorization services
 builder.Services.AddControllers();               // Registers MVC controller services
 builder.Services
@@ -47,16 +48,22 @@ app.UseApiPipelineExceptionHandler();
 // After forwarded headers so the correct scheme is used for the redirect
 app.UseHttpsRedirection();
 
-// Before caching so Vary: Origin is set before the cache key is computed; before rate limiting so preflight requests are not counted
+// Before authentication so preflight requests are not counted against rate limits
 app.UseCors();
 
-// After CORS — only rate-limit real requests, not browser preflight
+// Authentication must run before authorization and before response caching
+app.UseAuthentication();
+
+// Authorization MUST precede UseResponseCaching to prevent auth bypass via cached responses
+app.UseAuthorization();
+
+// After authorization — only rate-limit real authenticated requests
 app.UseRateLimiting();
 
 // Before caching so the compressed form is what gets stored and served
 app.UseResponseCompression();
 
-// After compression and CORS to cache correctly keyed, compressed responses
+// After authentication + authorization — only cache authorized responses
 app.UseResponseCaching();
 
 // Adds security headers via OnStarting; applies to all non-cached responses
@@ -64,9 +71,6 @@ app.UseSecurityHeaders();
 
 // Appends Deprecation/Sunset headers for deprecated API versions
 app.UseApiVersionDeprecation();
-
-// After CORS — authorization checks run on authenticated, origin-validated requests
-app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
 

@@ -73,7 +73,7 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        app.UseResponseCaching();
+        ((IApplicationBuilder)app).UseResponseCaching();
         return app;
     }
 
@@ -126,6 +126,13 @@ public static class WebApplicationExtensions
     /// registered by <see cref="ServiceCollectionExtensions.AddApiPipelineExceptionHandler"/>.
     /// Produces RFC 7807 error responses with correlation ID and trace ID.
     /// Place this early in the pipeline, after <c>UseCorrelationId</c>.
+    /// <para>
+    /// <b>Required pipeline order:</b>
+    /// <c>UseCorrelationId</c> → <c>UseApiPipelineExceptionHandler</c> → ... →
+    /// <c>UseAuthentication</c> → <c>UseAuthorization</c> → <c>UseResponseCaching</c>.
+    /// Placing <c>UseResponseCaching</c> before <c>UseAuthorization</c> creates an auth-bypass
+    /// risk where cached responses are served without checking credentials.
+    /// </para>
     /// </summary>
     /// <param name="app">The web application to configure.</param>
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
