@@ -7,8 +7,10 @@ using Microsoft.Extensions.Options;
 namespace ApiPipeline.NET.Tests;
 
 /// <summary>
-/// A minimal authentication handler used in tests that always returns a failed authentication result,
-/// causing authorization to issue a 401 challenge without throwing an exception.
+/// A minimal authentication handler used in tests.
+/// Returns a successful authentication result when the request carries
+/// <c>Authorization: Bearer valid-token</c>, and <see cref="AuthenticateResult.NoResult"/>
+/// otherwise, causing authorization to issue a 401 challenge.
 /// </summary>
 internal sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
@@ -26,7 +28,17 @@ internal sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSche
     /// <inheritdoc />
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Always return NoResult so that the request is treated as unauthenticated.
+        // Succeed only when the caller presents the well-known test bearer token.
+        if (Request.Headers.Authorization.ToString() == "Bearer valid-token")
+        {
+            var identity = new ClaimsIdentity(
+                [new Claim(ClaimTypes.Name, "test-user")],
+                Scheme.Name);
+            var ticket = new AuthenticationTicket(new System.Security.Principal.GenericPrincipal(identity, null), Scheme.Name);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
+
+        // No token — treat as unauthenticated so authorization issues a 401 challenge.
         return Task.FromResult(AuthenticateResult.NoResult());
     }
 }

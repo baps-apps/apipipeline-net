@@ -45,4 +45,43 @@ public sealed class PipelineOrderingTests
         var unauthResponse = await client.GetAsync("/secure");
         unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    /// <summary>
+    /// Verifies that a cached 200 response from an authenticated request is NOT replayed
+    /// to a subsequent unauthenticated request, confirming that authorization runs before
+    /// the cache can short-circuit the pipeline.
+    /// </summary>
+    [Fact]
+    public async Task ResponseCaching_Does_Not_Replay_Authenticated_Response_To_Unauthenticated_Request()
+    {
+        // This test proves the cache-bypass scenario is not possible:
+        // 1. An authenticated request warms the cache with a 200.
+        // 2. A subsequent unauthenticated request must still get 401, not the cached 200.
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ResponseCachingOptions:Enabled"] = "true";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+
+        // Auth BEFORE caching — the correct, safe ordering.
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.UseResponseCaching();
+
+        app.MapGet("/secure", [Authorize] () => Results.Ok("secret"))
+            .WithMetadata(new ResponseCacheAttribute { Duration = 60 });
+
+        await app.StartAsync();
+        var client = app.GetTestClient();
+
+        // Step 1: authenticated request — should succeed (200) and warm the cache.
+        var authRequest = new HttpRequestMessage(HttpMethod.Get, "/secure");
+        authRequest.Headers.Add("Authorization", "Bearer valid-token");
+        var authResponse = await client.SendAsync(authRequest);
+        authResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Step 2: unauthenticated request — must NOT receive the cached 200.
+        var unauthResponse = await client.GetAsync("/secure");
+        unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
 }

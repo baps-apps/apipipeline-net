@@ -67,12 +67,14 @@ app.UseApiPipelineForwardedHeaders();
 app.UseCorrelationId();
 app.UseApiPipelineExceptionHandler();
 app.UseHttpsRedirection();
+app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseRateLimiting();
 app.UseResponseCompression();
 app.UseResponseCaching();
 app.UseSecurityHeaders();
 app.UseApiVersionDeprecation();
-app.UseCors();
 
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
 
