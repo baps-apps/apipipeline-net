@@ -89,7 +89,28 @@ public sealed class SecurityHeadersMiddleware
             {
                 hsts += "; includeSubDomains";
             }
+            if (settings.StrictTransportSecurityPreload)
+            {
+                hsts += "; preload";
+            }
             headers["Strict-Transport-Security"] = hsts;
+        }
+
+        if (settings.AddXFrameOptions && !headers.ContainsKey("X-Frame-Options"))
+        {
+            headers["X-Frame-Options"] = settings.XFrameOptionsValue;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.ContentSecurityPolicy)
+            && !headers.ContainsKey("Content-Security-Policy"))
+        {
+            headers["Content-Security-Policy"] = settings.ContentSecurityPolicy;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.PermissionsPolicy)
+            && !headers.ContainsKey("Permissions-Policy"))
+        {
+            headers["Permissions-Policy"] = settings.PermissionsPolicy;
         }
 
         ApiPipelineTelemetry.RecordSecurityHeadersApplied();
