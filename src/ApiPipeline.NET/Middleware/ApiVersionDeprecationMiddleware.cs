@@ -86,7 +86,16 @@ public sealed class ApiVersionDeprecationMiddleware
 
             if (!string.IsNullOrWhiteSpace(deprecated.SunsetLink))
             {
-                ctx.Response.Headers.Append("Link", $"<{deprecated.SunsetLink}>; rel=\"sunset\"");
+                if (Uri.TryCreate(deprecated.SunsetLink, UriKind.Absolute, out _))
+                {
+                    ctx.Response.Headers.Append("Link", $"<{deprecated.SunsetLink}>; rel=\"sunset\"");
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ApiVersionDeprecation: SunsetLink '{SunsetLink}' is not a valid absolute URI — skipped to prevent header injection.",
+                        deprecated.SunsetLink);
+                }
             }
 
             ApiPipelineTelemetry.RecordDeprecationHeadersAdded(requestedText);

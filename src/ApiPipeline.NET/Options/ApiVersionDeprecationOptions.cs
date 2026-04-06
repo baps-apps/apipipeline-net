@@ -47,8 +47,9 @@ public sealed class DeprecatedVersion
     public DateTimeOffset? SunsetDate { get; set; }
 
     /// <summary>
-    /// An optional link providing additional information about the deprecation or sunset.
+    /// An optional absolute URL providing additional information about the deprecation or sunset.
+    /// Must be a valid absolute URI. Invalid values are silently skipped to prevent header injection.
     /// </summary>
-    [MinLength(0)]
+    [Url]
     public string? SunsetLink { get; set; }
 }

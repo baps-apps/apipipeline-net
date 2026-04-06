@@ -450,6 +450,20 @@ public static class ServiceCollectionExtensions
         services.AddOptions<ApiVersionDeprecationOptions>()
             .Bind(configuration.GetSection(ApiPipelineConfigurationKeys.ApiVersionDeprecation))
             .ValidateDataAnnotations()
+            .Validate(
+                opts =>
+                {
+                    foreach (var dv in opts.DeprecatedVersions ?? [])
+                    {
+                        if (!string.IsNullOrWhiteSpace(dv.SunsetLink)
+                            && !Uri.IsWellFormedUriString(dv.SunsetLink, UriKind.Absolute))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+                "SunsetLink must be a valid absolute URI (e.g. 'https://docs.example.com/v1-sunset') when specified.")
             .ValidateOnStart();
 
         return services;
