@@ -21,14 +21,15 @@ namespace ApiPipeline.NET.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers correlation ID services. Provided for <c>Add*</c>/<c>Use*</c> API symmetry.
-    /// The middleware is activated by the pipeline via <c>UseMiddleware&lt;CorrelationIdMiddleware&gt;</c>
-    /// and resolves its dependencies (<see cref="ILogger{T}"/>) from the container automatically.
+    /// Registers <see cref="CorrelationIdMiddleware"/> in the DI container (required for the
+    /// <see cref="Microsoft.AspNetCore.Http.IMiddleware"/> activation pattern) and enables the
+    /// <c>Add*</c>/<c>Use*</c> API symmetry.
     /// </summary>
     /// <param name="services">The service collection to add services to.</param>
     /// <returns>The same <see cref="IServiceCollection"/> instance to enable fluent chaining.</returns>
     public static IServiceCollection AddCorrelationId(this IServiceCollection services)
     {
+        services.TryAddTransient<CorrelationIdMiddleware>();
         return services;
     }
 

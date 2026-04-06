@@ -167,4 +167,19 @@ public sealed class CorrelationIdMiddlewareTests
 
         body.Should().Contain("my-id-42");
     }
+
+    /// <summary>
+    /// Verifies that AddCorrelationId registers CorrelationIdMiddleware as a DI service,
+    /// making AddCorrelationId() a meaningful registration call rather than a no-op.
+    /// </summary>
+    [Fact]
+    public async Task AddCorrelationId_Registers_Middleware_In_DI()
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(TestAppBuilder.MinimalConfig());
+
+        // CorrelationIdMiddleware must be resolvable from DI after AddCorrelationId() is called
+        var middleware = app.Services.GetService<CorrelationIdMiddleware>();
+        middleware.Should().NotBeNull(
+            "AddCorrelationId must register CorrelationIdMiddleware in DI (IMiddleware pattern)");
+    }
 }

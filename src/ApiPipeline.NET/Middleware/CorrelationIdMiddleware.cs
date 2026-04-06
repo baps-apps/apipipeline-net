@@ -7,15 +7,16 @@ namespace ApiPipeline.NET.Middleware;
 /// <summary>
 /// ASP.NET Core middleware that ensures every request and response carries a correlation ID.
 /// Incoming correlation IDs are validated against a strict alphanumeric pattern to prevent header injection.
+/// Registered via <c>UseMiddleware&lt;CorrelationIdMiddleware&gt;()</c>
+/// after calling <see cref="Extensions.ServiceCollectionExtensions.AddCorrelationId"/>.
 /// </summary>
-public sealed partial class CorrelationIdMiddleware
+public sealed partial class CorrelationIdMiddleware : IMiddleware
 {
     /// <summary>
     /// The HTTP header name used to propagate the correlation identifier.
     /// </summary>
     public const string HeaderName = "X-Correlation-Id";
 
-    private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
 
     [GeneratedRegex(@"^[a-zA-Z0-9\-_.]{1,128}$")]
@@ -24,11 +25,9 @@ public sealed partial class CorrelationIdMiddleware
     /// <summary>
     /// Initializes a new instance of the <see cref="CorrelationIdMiddleware"/> class.
     /// </summary>
-    /// <param name="next">The next middleware in the ASP.NET Core pipeline.</param>
     /// <param name="logger">Logger for diagnostics.</param>
-    public CorrelationIdMiddleware(RequestDelegate next, ILogger<CorrelationIdMiddleware> logger)
+    public CorrelationIdMiddleware(ILogger<CorrelationIdMiddleware> logger)
     {
-        _next = next;
         _logger = logger;
     }
 
@@ -37,8 +36,9 @@ public sealed partial class CorrelationIdMiddleware
     /// Invalid or missing incoming correlation IDs are replaced with a server-generated value.
     /// </summary>
     /// <param name="context">The current HTTP context.</param>
+    /// <param name="next">The next middleware delegate.</param>
     /// <returns>A task that represents the completion of request processing.</returns>
-    public async Task Invoke(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         string correlationId;
 
@@ -75,9 +75,9 @@ public sealed partial class CorrelationIdMiddleware
         ApiPipelineTelemetry.SetCorrelationIdOnCurrentActivity(correlationId);
         ApiPipelineTelemetry.RecordCorrelationIdProcessed();
 
-        using (_logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+        using (_logger.BeginScope(new[] { new KeyValuePair<string, object?>("CorrelationId", (object?)correlationId) }))
         {
-            await _next(context);
+            await next(context);
         }
     }
 }
