@@ -181,6 +181,13 @@ public static class WebApplicationExtensions
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
     public static WebApplication UseApiPipelineExceptionHandler(this WebApplication app)
     {
+        if (app.Services.GetService<IProblemDetailsService>() is null)
+        {
+            throw new InvalidOperationException(
+                "UseApiPipelineExceptionHandler requires AddApiPipelineExceptionHandler to be called " +
+                "during service registration. Add it to your IServiceCollection setup before building the app.");
+        }
+
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         return app;

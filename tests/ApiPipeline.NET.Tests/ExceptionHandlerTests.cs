@@ -118,4 +118,26 @@ public sealed class ExceptionHandlerTests
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("success");
     }
+
+    /// <summary>
+    /// Verifies that calling UseApiPipelineExceptionHandler without first calling
+    /// AddApiPipelineExceptionHandler throws a clear InvalidOperationException at pipeline
+    /// build time rather than silently falling back to plain-text error responses.
+    /// </summary>
+    [Fact]
+    public async Task UseApiPipelineExceptionHandler_Without_AddService_Throws()
+    {
+        var config = TestAppBuilder.MinimalConfig();
+        // addExceptionHandler: false — skips AddApiPipelineExceptionHandler
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: false);
+
+        var act = () =>
+        {
+            app.UseApiPipelineExceptionHandler();
+            return Task.CompletedTask;
+        };
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*AddApiPipelineExceptionHandler*");
+    }
 }
