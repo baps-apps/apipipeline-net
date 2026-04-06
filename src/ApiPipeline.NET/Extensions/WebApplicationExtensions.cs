@@ -1,6 +1,7 @@
 using System.Net;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -53,10 +54,31 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        var excluded = settings.ExcludedPaths ?? [];
+        // Pre-compute PathString[] once at registration — avoids per-request LINQ allocation
+        var excludedPaths = (settings.ExcludedPaths ?? [])
+            .Select(p => new PathString(p))
+            .ToArray();
+
+        if (excludedPaths.Length == 0)
+        {
+            ((IApplicationBuilder)app).UseResponseCompression();
+            return app;
+        }
+
         app.UseWhen(
-            context => !excluded.Any(p => context.Request.Path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)),
-            branch => branch.UseResponseCompression());
+            context =>
+            {
+                var path = context.Request.Path;
+                foreach (var excluded in excludedPaths)
+                {
+                    if (path.StartsWithSegments(excluded, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            },
+            branch => ((IApplicationBuilder)branch).UseResponseCompression());
 
         return app;
     }
