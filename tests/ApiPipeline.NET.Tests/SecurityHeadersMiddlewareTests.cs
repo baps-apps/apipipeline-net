@@ -39,14 +39,19 @@ public sealed class SecurityHeadersMiddlewareTests
     }
 
     /// <summary>
-    /// Verifies that browser-only headers such as <c>Content-Security-Policy</c>,
-    /// <c>X-Frame-Options</c>, and <c>Permissions-Policy</c> are not added by the
-    /// middleware, since they are irrelevant or potentially harmful for pure API responses.
+    /// Verifies that opt-in headers such as <c>Content-Security-Policy</c> and
+    /// <c>Permissions-Policy</c> are not added by default, since they are only emitted
+    /// when explicitly configured. <c>X-Frame-Options</c> is now enabled by default
+    /// and can be disabled by setting <c>AddXFrameOptions</c> to <c>false</c>.
     /// </summary>
     [Fact]
     public async Task Does_Not_Include_Browser_Only_Headers()
     {
-        var config = TestAppBuilder.WithSecurityHeaders(enabled: true);
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["SecurityHeaders:Enabled"] = "true";
+            c["SecurityHeaders:AddXFrameOptions"] = "false";
+        });
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
         app.UseSecurityHeaders();
         app.MapGet("/test", () => Results.Ok("ok"));
@@ -183,5 +188,116 @@ public sealed class SecurityHeadersMiddlewareTests
 
         var value = response.Headers.GetValues("Referrer-Policy").Single();
         value.Should().Be("strict-origin");
+    }
+
+    /// <summary>
+    /// Verifies that <c>X-Frame-Options</c> is added with value <c>DENY</c> by default,
+    /// protecting against clickjacking attacks.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Adds_XFrameOptions_By_Default()
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(
+            TestAppBuilder.WithSecurityHeaders());
+        app.UseSecurityHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/test");
+
+        response.Headers.Contains("X-Frame-Options").Should().BeTrue();
+        response.Headers.GetValues("X-Frame-Options").Single().Should().Be("DENY");
+    }
+
+    /// <summary>
+    /// Verifies that <c>Content-Security-Policy</c> is emitted when explicitly configured,
+    /// with the exact policy value provided in settings.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Adds_ContentSecurityPolicy_When_Configured()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["SecurityHeaders:Enabled"] = "true";
+            c["SecurityHeaders:ContentSecurityPolicy"] = "default-src 'none'";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseSecurityHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/test");
+
+        response.Headers.Contains("Content-Security-Policy").Should().BeTrue();
+        response.Headers.GetValues("Content-Security-Policy").Single()
+            .Should().Be("default-src 'none'");
+    }
+
+    /// <summary>
+    /// Verifies that <c>Content-Security-Policy</c> is omitted when not configured,
+    /// since the default value is <c>null</c>.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Does_Not_Add_CSP_When_Not_Configured()
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(
+            TestAppBuilder.WithSecurityHeaders());
+        app.UseSecurityHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/test");
+
+        // CSP is null by default — must not be emitted
+        response.Headers.Contains("Content-Security-Policy").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies that the <c>preload</c> directive is appended to the HSTS header when
+    /// <c>StrictTransportSecurityPreload</c> is set to <c>true</c>.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Adds_HSTS_Preload_When_Enabled()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["SecurityHeaders:Enabled"] = "true";
+            c["SecurityHeaders:EnableStrictTransportSecurity"] = "true";
+            c["SecurityHeaders:StrictTransportSecurityPreload"] = "true";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(
+            config, environment: "Production");
+        app.UseSecurityHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/test");
+
+        var hsts = response.Headers.GetValues("Strict-Transport-Security").Single();
+        hsts.Should().Contain("preload");
+    }
+
+    /// <summary>
+    /// Verifies that <c>Permissions-Policy</c> is emitted when explicitly configured,
+    /// with the exact policy value provided in settings.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Adds_PermissionsPolicy_When_Configured()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["SecurityHeaders:Enabled"] = "true";
+            c["SecurityHeaders:PermissionsPolicy"] = "camera=(), microphone=()";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseSecurityHeaders();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/test");
+
+        response.Headers.Contains("Permissions-Policy").Should().BeTrue();
+        response.Headers.GetValues("Permissions-Policy").Single()
+            .Should().Be("camera=(), microphone=()");
     }
 }

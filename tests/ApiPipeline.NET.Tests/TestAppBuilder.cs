@@ -23,6 +23,9 @@ internal static class TestAppBuilder
         builder.Configuration.AddInMemoryCollection(config);
 
         builder.Services.AddRouting();
+        builder.Services.AddAuthentication(defaultScheme: "Test")
+            .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+        builder.Services.AddAuthorization();
         builder.Services
             .AddCorrelationId()
             .AddRateLimiting(builder.Configuration)
