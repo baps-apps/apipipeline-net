@@ -37,6 +37,18 @@ public static class WebApplicationExtensions
             return app;
         }
 
+        var logger = app.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("ApiPipeline.NET.RateLimiting");
+        var policyNames = settings.Policies
+            .Select(p => p.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .ToArray();
+        logger.LogInformation(
+            "Rate limiting enabled. Default policy: '{DefaultPolicy}'. Registered named policies: [{Policies}]. " +
+            "Note: named policies are registered at startup — adding new policies requires an app restart.",
+            settings.DefaultPolicy,
+            string.Join(", ", policyNames));
+
         app.UseRateLimiter();
         return app;
     }
