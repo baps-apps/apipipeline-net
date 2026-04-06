@@ -7,6 +7,7 @@ using ApiPipeline.NET.Cors;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
+using ApiPipeline.NET.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -479,74 +480,5 @@ public static class ServiceCollectionExtensions
             });
 
         return services;
-    }
-}
-
-/// <summary>
-/// Singleton resolver for rate limit policies. Wraps <see cref="IOptionsMonitor{T}"/>
-/// to avoid per-request DI scope allocation inside the rate-limiter callback.
-/// </summary>
-internal sealed class RateLimiterPolicyResolver
-{
-    private readonly IOptionsMonitor<RateLimitingOptions> _monitor;
-
-    public RateLimiterPolicyResolver(IOptionsMonitor<RateLimitingOptions> monitor)
-        => _monitor = monitor;
-
-    public RateLimitingOptions Current => _monitor.CurrentValue;
-}
-
-internal sealed class ConfigureResponseCompressionOptions : IConfigureOptions<ResponseCompressionOptions>
-{
-    private readonly IOptions<ResponseCompressionSettings> _settings;
-
-    public ConfigureResponseCompressionOptions(IOptions<ResponseCompressionSettings> settings) => _settings = settings;
-
-    public void Configure(ResponseCompressionOptions options)
-    {
-        var settings = _settings.Value;
-
-        options.EnableForHttps = settings.EnableForHttps;
-
-        options.Providers.Clear();
-        if (settings.EnableBrotli)
-        {
-            options.Providers.Add<BrotliCompressionProvider>();
-        }
-        if (settings.EnableGzip)
-        {
-            options.Providers.Add<GzipCompressionProvider>();
-        }
-
-        var mimeTypes = (settings.MimeTypes is { Length: > 0 }
-                ? settings.MimeTypes
-                : ResponseCompressionDefaults.MimeTypes.Concat([MediaTypeNames.Application.Json, "application/problem+json"]))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (settings.ExcludedMimeTypes is { Length: > 0 })
-        {
-            mimeTypes.RemoveAll(mt => settings.ExcludedMimeTypes.Contains(mt, StringComparer.OrdinalIgnoreCase));
-        }
-
-        options.MimeTypes = mimeTypes.ToArray();
-    }
-}
-
-internal sealed class ConfigureResponseCachingOptions : IConfigureOptions<ResponseCachingOptions>
-{
-    private readonly IOptions<ResponseCachingSettings> _settings;
-
-    public ConfigureResponseCachingOptions(IOptions<ResponseCachingSettings> settings) => _settings = settings;
-
-    public void Configure(ResponseCachingOptions options)
-    {
-        var settings = _settings.Value;
-        if (settings.SizeLimitBytes is { } size)
-        {
-            options.SizeLimit = size;
-        }
-
-        options.UseCaseSensitivePaths = settings.UseCaseSensitivePaths;
     }
 }
