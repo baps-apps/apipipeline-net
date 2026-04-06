@@ -149,4 +149,16 @@ public sealed class CorsTests
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
         response.Headers.Contains("Access-Control-Allow-Methods").Should().BeTrue();
     }
+
+    /// <summary>
+    /// Verifies that AllowAllInDevelopment defaults to false to prevent accidental
+    /// wildcard CORS in staging/CI environments where ASPNETCORE_ENVIRONMENT=Development.
+    /// </summary>
+    [Fact]
+    public void CorsSettings_AllowAllInDevelopment_DefaultIs_False()
+    {
+        var settings = new ApiPipeline.NET.Options.CorsSettings();
+        settings.AllowAllInDevelopment.Should().BeFalse(
+            "wildcard CORS must be explicit opt-in to avoid accidental exposure in staging");
+    }
 }

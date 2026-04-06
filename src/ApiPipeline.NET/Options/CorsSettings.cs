@@ -16,8 +16,9 @@ public sealed class CorsSettings
 
     /// <summary>
     /// When true in development, allows all origins, methods and headers.
+    /// Defaults to <c>false</c>. Set explicitly to <c>true</c> in development appsettings only.
     /// </summary>
-    public bool AllowAllInDevelopment { get; set; } = true;
+    public bool AllowAllInDevelopment { get; set; } = false;
 
     /// <summary>
     /// The set of allowed origins. When <c>null</c> or empty, all origins are rejected in production scenarios.

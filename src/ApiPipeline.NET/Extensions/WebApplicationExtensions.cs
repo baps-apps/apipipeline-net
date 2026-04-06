@@ -145,9 +145,20 @@ public static class WebApplicationExtensions
             return app;
         }
 
-        var policyName = env.IsDevelopment() && settings.AllowAllInDevelopment
-            ? CorsPolicyNames.AllowAll
-            : CorsPolicyNames.Configured;
+        string policyName;
+        if (env.IsDevelopment() && settings.AllowAllInDevelopment)
+        {
+            var logger = app.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ApiPipeline.NET.Cors");
+            logger.LogWarning(
+                "CORS: AllowAll policy is active (AllowAllInDevelopment=true). " +
+                "All origins, methods, and headers are allowed. Do not use in production.");
+            policyName = CorsPolicyNames.AllowAll;
+        }
+        else
+        {
+            policyName = CorsPolicyNames.Configured;
+        }
 
         app.UseCors(policyName);
         return app;
