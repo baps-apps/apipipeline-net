@@ -59,4 +59,16 @@ public sealed class ResponseCompressionTests
         var response = await client.GetAsync("/test");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    /// <summary>
+    /// Verifies that the default value of EnableForHttps is false (opt-in only).
+    /// BREACH/CRIME attacks are possible when HTTPS + compression is on by default.
+    /// </summary>
+    [Fact]
+    public void ResponseCompressionSettings_EnableForHttps_DefaultIs_False()
+    {
+        var settings = new ApiPipeline.NET.Options.ResponseCompressionSettings();
+        settings.EnableForHttps.Should().BeFalse(
+            "HTTPS compression must be opt-in to avoid BREACH/CRIME attacks");
+    }
 }

@@ -20,8 +20,10 @@ public sealed class ResponseCompressionSettings
     /// content. For APIs that never reflect user input in the same response as secrets, the risk
     /// is low. Disable this property if your API returns sensitive tokens or secrets in response bodies.
     /// </para>
+    /// <para><b>Default is <c>false</c> (opt-in).</b> Enable only when your API endpoints
+    /// are confirmed to never mix attacker-controlled input with secrets in the same response body.</para>
     /// </summary>
-    public bool EnableForHttps { get; set; } = true;
+    public bool EnableForHttps { get; set; } = false;
 
     /// <summary>
     /// Indicates whether Brotli compression is enabled.

@@ -54,6 +54,15 @@ public static class WebApplicationExtensions
             return app;
         }
 
+        if (settings.EnableForHttps)
+        {
+            var logger = app.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ApiPipeline.NET.ResponseCompression");
+            logger.LogWarning(
+                "ResponseCompression: EnableForHttps is true. Ensure your API never mixes " +
+                "attacker-controlled input with secrets in the same compressed response (BREACH/CRIME risk).");
+        }
+
         // Pre-compute PathString[] once at registration — avoids per-request LINQ allocation
         var excludedPaths = (settings.ExcludedPaths ?? [])
             .Select(p => new PathString(p))
