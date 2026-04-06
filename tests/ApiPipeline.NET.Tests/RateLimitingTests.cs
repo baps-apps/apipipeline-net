@@ -25,7 +25,7 @@ public sealed class RateLimitingTests
     public async Task FixedWindow_Rejects_After_PermitLimit()
     {
         var config = TestAppBuilder.WithRateLimiting(permitLimit: 2, windowSeconds: 60);
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();
@@ -57,7 +57,7 @@ public sealed class RateLimitingTests
             c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();
@@ -87,7 +87,7 @@ public sealed class RateLimitingTests
             c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
 
         var tcs = new TaskCompletionSource();
@@ -119,7 +119,7 @@ public sealed class RateLimitingTests
     public async Task RateLimiting_Disabled_Allows_All_Requests()
     {
         var config = TestAppBuilder.MinimalConfig();
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();
@@ -141,7 +141,7 @@ public sealed class RateLimitingTests
     public async Task Rejected_Response_Is_ProblemDetails_Format()
     {
         var config = TestAppBuilder.WithRateLimiting(permitLimit: 1);
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();
@@ -182,7 +182,7 @@ public sealed class RateLimitingTests
             c["RateLimitingOptions:Policies:0:AutoReplenishment"] = "false";
         });
 
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();
@@ -204,7 +204,7 @@ public sealed class RateLimitingTests
     {
         // Regression guard: ensures IOptionsMonitor doesn't break per-policy enforcement
         var config = TestAppBuilder.WithRateLimiting(permitLimit: 3, windowSeconds: 60);
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
         app.UseRateLimiting();
         app.MapGet("/test", () => Results.Ok("ok"));
         await app.StartAsync();

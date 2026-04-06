@@ -52,7 +52,7 @@ public sealed class ApiPipelineSmokeTests
             ["RequestLimitsOptions:MaxRequestHeadersTotalSize"] = "32768",
             ["RequestLimitsOptions:MaxRequestHeaderCount"] = "100",
             ["RequestLimitsOptions:MaxFormValueCount"] = "1024"
-        });
+        }, addExceptionHandler: true);
 
         app.UseCorrelationId();
         app.UseRateLimiting();
@@ -101,7 +101,7 @@ public sealed class ApiPipelineSmokeTests
             ["SecurityHeaders:Enabled"] = "false",
             ["CorsOptions:Enabled"] = "false",
             ["ApiVersionDeprecationOptions:Enabled"] = "false"
-        });
+        }, addExceptionHandler: true);
 
         app.UseRateLimiting();
         app.MapGet("/api/limited", () => Results.Ok("ok"));
