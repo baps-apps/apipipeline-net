@@ -195,6 +195,29 @@ public sealed class RateLimitingTests
     }
 
     /// <summary>
+    /// Regression guard: ensures IOptionsMonitor doesn't break per-policy enforcement.
+    /// Verifies that a fixed-window policy with permit limit 3 allows exactly 3 requests
+    /// and rejects the 4th with HTTP 429.
+    /// </summary>
+    [Fact]
+    public async Task RateLimiter_Enforces_PermitLimit_Consistently_Across_Requests()
+    {
+        // Regression guard: ensures IOptionsMonitor doesn't break per-policy enforcement
+        var config = TestAppBuilder.WithRateLimiting(permitLimit: 3, windowSeconds: 60);
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+
+        (await client.GetAsync("/test")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/test")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/test")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/test")).StatusCode.Should().Be((HttpStatusCode)429);
+    }
+
+    /// <summary>
     /// Verifies that a rate-limit rejection response includes both a <c>correlationId</c>
     /// field matching the value sent in the request's <c>X-Correlation-Id</c> header, and
     /// a non-empty <c>traceId</c> field in the problem-details body.

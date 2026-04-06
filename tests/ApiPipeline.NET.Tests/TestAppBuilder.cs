@@ -35,12 +35,8 @@ internal static class TestAppBuilder
             .AddCors(builder.Configuration)
             .AddApiVersionDeprecation(builder.Configuration)
             .AddRequestLimits(builder.Configuration)
-            .AddForwardedHeaders(builder.Configuration);
-
-        if (addExceptionHandler)
-        {
-            builder.Services.AddApiPipelineExceptionHandler();
-        }
+            .AddForwardedHeaders(builder.Configuration)
+            .AddApiPipelineExceptionHandler();
 
         builder.ConfigureKestrelRequestLimits();
 

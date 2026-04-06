@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Net.Mime;
-using System.Text.Json;
 using System.Threading.RateLimiting;
 using ApiPipeline.NET.Configuration;
 using ApiPipeline.NET.Middleware;
@@ -175,6 +174,8 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddSingleton<RateLimiterPolicyResolver>();
+
         services.AddRateLimiter(rateLimiterOptions =>
         {
             rateLimiterOptions.OnRejected = static async (context, cancellationToken) =>
@@ -191,38 +192,23 @@ public static class ServiceCollectionExtensions
                     response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString();
                 }
 
-                var problemDetailsService = httpContext.RequestServices.GetService<IProblemDetailsService>();
-                if (problemDetailsService is not null)
+                var problemDetailsService = httpContext.RequestServices.GetRequiredService<IProblemDetailsService>();
+                await problemDetailsService.WriteAsync(new ProblemDetailsContext
                 {
-                    await problemDetailsService.WriteAsync(new ProblemDetailsContext
+                    HttpContext = httpContext,
+                    ProblemDetails =
                     {
-                        HttpContext = httpContext,
-                        ProblemDetails =
-                        {
-                            Type = "https://tools.ietf.org/html/rfc6585#section-4",
-                            Title = "Too Many Requests",
-                            Status = StatusCodes.Status429TooManyRequests,
-                            Detail = "Rate limit exceeded. Retry after the duration indicated by the Retry-After header."
-                        }
-                    });
-                }
-                else
-                {
-                    response.ContentType = "application/problem+json";
-                    var problem = JsonSerializer.Serialize(new
-                    {
-                        type = "https://tools.ietf.org/html/rfc6585#section-4",
-                        title = "Too Many Requests",
-                        status = 429,
-                        detail = "Rate limit exceeded. Retry after the duration indicated by the Retry-After header."
-                    });
-                    await response.WriteAsync(problem, cancellationToken);
-                }
+                        Type = "https://tools.ietf.org/html/rfc6585#section-4",
+                        Title = "Too Many Requests",
+                        Status = StatusCodes.Status429TooManyRequests,
+                        Detail = "Rate limit exceeded. Retry after the duration indicated by the Retry-After header."
+                    }
+                });
             };
 
             rateLimiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
             {
-                var options = httpContext.RequestServices.GetRequiredService<IOptionsSnapshot<RateLimitingOptions>>().Value;
+                var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
                 var policy = ResolvePolicy(options, options.DefaultPolicy);
                 return policy is not null
                     ? CreateRateLimiterPartition(httpContext, policy)
@@ -243,7 +229,7 @@ public static class ServiceCollectionExtensions
 
                     rateLimiterOptions.AddPolicy(policyName, httpContext =>
                     {
-                        var options = httpContext.RequestServices.GetRequiredService<IOptionsSnapshot<RateLimitingOptions>>().Value;
+                        var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
                         var runtimePolicy = ResolvePolicy(options, policyName);
                         return runtimePolicy is not null
                             ? CreateRateLimiterPartition(httpContext, runtimePolicy)
@@ -504,6 +490,20 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+}
+
+/// <summary>
+/// Singleton resolver for rate limit policies. Wraps <see cref="IOptionsMonitor{T}"/>
+/// to avoid per-request DI scope allocation inside the rate-limiter callback.
+/// </summary>
+internal sealed class RateLimiterPolicyResolver
+{
+    private readonly IOptionsMonitor<RateLimitingOptions> _monitor;
+
+    public RateLimiterPolicyResolver(IOptionsMonitor<RateLimitingOptions> monitor)
+        => _monitor = monitor;
+
+    public RateLimitingOptions Current => _monitor.CurrentValue;
 }
 
 internal sealed class ConfigureResponseCompressionOptions : IConfigureOptions<ResponseCompressionOptions>
