@@ -25,6 +25,19 @@ public static class WebApplicationExtensions
     }
 
     /// <summary>
+    /// Adds the request size tracking middleware. Records <c>Content-Length</c> to the
+    /// <c>apipipeline.request.body_bytes</c> histogram for capacity planning and anomaly detection.
+    /// Place immediately after <c>UseApiPipelineForwardedHeaders</c>.
+    /// </summary>
+    /// <param name="app">The web application to configure.</param>
+    /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
+    public static WebApplication UseRequestSizeTracking(this WebApplication app)
+    {
+        app.UseMiddleware<RequestSizeMiddleware>();
+        return app;
+    }
+
+    /// <summary>
     /// Enables ASP.NET Core rate limiting when <see cref="RateLimitingOptions.Enabled"/> is true.
     /// </summary>
     /// <param name="app">The web application to configure.</param>

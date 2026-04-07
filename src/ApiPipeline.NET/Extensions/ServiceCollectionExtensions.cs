@@ -141,6 +141,15 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers <see cref="Middleware.RequestSizeMiddleware"/> for request body size telemetry.
+    /// </summary>
+    public static IServiceCollection AddRequestSizeTracking(this IServiceCollection services)
+    {
+        services.TryAddTransient<RequestSizeMiddleware>();
+        return services;
+    }
+
+    /// <summary>
     /// Registers <see cref="Microsoft.AspNetCore.Http.IProblemDetailsService"/> with correlation ID and trace ID enrichment,
     /// enabling structured RFC 7807 error responses from <c>UseApiPipelineExceptionHandler</c>.
     /// </summary>
