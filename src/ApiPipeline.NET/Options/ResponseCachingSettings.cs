@@ -22,5 +22,12 @@ public sealed class ResponseCachingSettings
     /// Indicates whether cache lookups treat paths as case-sensitive.
     /// </summary>
     public bool UseCaseSensitivePaths { get; set; } = false;
+
+    /// <summary>
+    /// When <c>true</c>, consumers should use the <c>ApiPipeline.NET.OutputCaching</c> satellite
+    /// package instead, which provides .NET 7+ Output Caching with distributed store support (Redis).
+    /// This flag does nothing in the core package — it is a signal for migration.
+    /// </summary>
+    public bool PreferOutputCaching { get; set; } = false;
 }
 

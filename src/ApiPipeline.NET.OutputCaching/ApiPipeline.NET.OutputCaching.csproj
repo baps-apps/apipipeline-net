@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>ApiPipeline.NET.OutputCaching</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>BAPS Dev Team</Authors>
+    <Description>Output Caching satellite for ApiPipeline.NET — uses ASP.NET Core Output Caching with distributed store support.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
+  </ItemGroup>
+</Project>
