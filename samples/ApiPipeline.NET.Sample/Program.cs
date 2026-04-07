@@ -20,9 +20,6 @@ builder.Services
 // Wires up OpenTelemetry tracing, metrics, and logging exporters
 builder.AddApiPipelineObservability();
 
-// Applies request body size limits at the Kestrel server level
-builder.ConfigureKestrelRequestLimits();
-
 builder.Services.AddAuthentication();            // Registers the ASP.NET Core authentication services
 builder.Services.AddAuthorization();             // Registers the ASP.NET Core authorization services
 builder.Services.AddControllers();               // Registers MVC controller services
