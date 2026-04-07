@@ -34,41 +34,20 @@ builder.Services
 
 var app = builder.Build();
 
-// Must be first — resolves scheme/IP from proxy headers before any other middleware reads them
-app.UseApiPipelineForwardedHeaders();
-
-// Before exception handler so correlation ID is available in error responses
-app.UseCorrelationId();
-
-// Early in pipeline to catch unhandled exceptions from all downstream middleware
-app.UseApiPipelineExceptionHandler();
-
-// After forwarded headers so the correct scheme is used for the redirect
-app.UseHttpsRedirection();
-
-// Before authentication so preflight requests are not counted against rate limits
-app.UseCors();
-
-// Authentication must run before authorization and before response caching
-app.UseAuthentication();
-
-// Authorization MUST precede UseResponseCaching to prevent auth bypass via cached responses
-app.UseAuthorization();
-
-// After authorization — only rate-limit real authenticated requests
-app.UseRateLimiting();
-
-// Before caching so the compressed form is what gets stored and served
-app.UseResponseCompression();
-
-// After authentication + authorization — only cache authorized responses
-app.UseResponseCaching();
-
-// Adds security headers via OnStarting; applies to all non-cached responses
-app.UseSecurityHeaders();
-
-// Appends Deprecation/Sunset headers for deprecated API versions
-app.UseApiVersionDeprecation();
+app.UseApiPipeline(pipeline => pipeline
+    .WithForwardedHeaders()
+    .WithCorrelationId()
+    .WithExceptionHandler()
+    .WithHttpsRedirection()
+    .WithCors()
+    .WithAuthentication()
+    .WithAuthorization()
+    .WithRateLimiting()
+    .WithResponseCompression()
+    .WithResponseCaching()
+    .WithSecurityHeaders()
+    .WithVersionDeprecation()
+);
 
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
 
