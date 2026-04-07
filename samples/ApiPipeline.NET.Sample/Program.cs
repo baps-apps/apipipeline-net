@@ -1,5 +1,6 @@
 using ApiPipeline.NET.Extensions;
 using ApiPipeline.NET.OpenTelemetry;
+using ApiPipeline.NET.Versioning;
 using Asp.Versioning;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +12,7 @@ builder.Services
     .AddResponseCaching(builder.Configuration)   // Enables server-side response caching for GET/HEAD responses
     .AddSecurityHeaders(builder.Configuration)   // Registers Strict-Transport-Security, X-Content-Type-Options, and Referrer-Policy headers
     .AddCors(builder.Configuration)              // Registers CORS policies (AllowAll in development, configured in production)
-    .AddApiVersionDeprecation(builder.Configuration) // Adds Deprecation/Sunset headers for deprecated API versions
+    .AddApiPipelineVersioning(builder.Configuration) // Adds Deprecation/Sunset headers for deprecated API versions (via Asp.Versioning.Mvc satellite)
     .AddRequestLimits(builder.Configuration)     // Sets maximum request body size limits
     .AddForwardedHeaders(builder.Configuration)  // Configures trusted proxies for X-Forwarded-For/Proto/Host processing
     .AddApiPipelineExceptionHandler();           // Registers RFC 7807 Problem Details error responses with correlation ID

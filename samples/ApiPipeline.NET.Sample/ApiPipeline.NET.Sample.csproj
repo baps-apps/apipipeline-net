@@ -12,8 +12,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="ApiPipeline.NET" Version="1.0.0" />
-    <PackageReference Include="ApiPipeline.NET.OpenTelemetry" Version="1.0.0" />
-    <PackageReference Include="CodeStyle.NET" Version="1.0.0" />
+    <PackageReference Include="ApiPipeline.NET" />
+    <PackageReference Include="ApiPipeline.NET.OpenTelemetry" />
+    <PackageReference Include="CodeStyle.NET" />
+    <ProjectReference Include="..\..\src\ApiPipeline.NET.Versioning\ApiPipeline.NET.Versioning.csproj" />
   </ItemGroup>
 </Project>
