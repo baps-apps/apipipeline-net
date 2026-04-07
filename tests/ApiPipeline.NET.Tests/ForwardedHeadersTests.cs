@@ -207,4 +207,38 @@ public sealed class ForwardedHeadersTests
         var response = await client.GetAsync("/test");
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
     }
+
+    /// <summary>
+    /// Verifies that ForwardLimit constrains processing to the N closest hops in
+    /// X-Forwarded-For, ignoring outer hops added by intermediate proxies.
+    /// </summary>
+    [Fact]
+    public async Task UseApiPipelineForwardedHeaders_ForwardLimit_Constrains_XFF_Hops()
+    {
+        // ForwardLimit=1 means only the closest (right-most) XFF entry is applied
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ForwardedHeadersOptions:Enabled"] = "true";
+            c["ForwardedHeadersOptions:ForwardLimit"] = "1";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+
+        app.UseApiPipelineForwardedHeaders();
+        app.MapGet("/ip", (HttpContext ctx) =>
+            Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
+        // Two hops: outer (spoofed) = 1.2.3.4, closest (trusted proxy) = 203.0.113.42
+        request.Headers.Add("X-Forwarded-For", "1.2.3.4, 203.0.113.42");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadAsStringAsync();
+        // Only the closest hop (203.0.113.42) is applied with ForwardLimit=1
+        body.Should().Contain("203.0.113.42");
+        body.Should().NotContain("1.2.3.4");
+    }
 }

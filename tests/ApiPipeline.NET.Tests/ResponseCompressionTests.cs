@@ -71,4 +71,32 @@ public sealed class ResponseCompressionTests
         settings.EnableForHttps.Should().BeFalse(
             "HTTPS compression must be opt-in to avoid BREACH/CRIME attacks");
     }
+
+    /// <summary>
+    /// Verifies that paths listed in ExcludedPaths are not compressed.
+    /// Health endpoints should never be compressed to avoid adding latency to probes.
+    /// </summary>
+    [Fact]
+    public async Task ResponseCompression_ExcludedPath_Not_Compressed()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ResponseCompressionOptions:Enabled"] = "true";
+            c["ResponseCompressionOptions:ExcludedPaths:0"] = "/health";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseResponseCompression();
+        app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
+        app.MapGet("/data", () => Results.Ok(new string('x', 2000))); // compressible
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, br");
+
+        var healthResponse = await client.GetAsync("/health");
+
+        // /health should NOT have Content-Encoding
+        healthResponse.Content.Headers.ContentEncoding.Should().BeEmpty(
+            "health endpoint is in ExcludedPaths and must not be compressed");
+    }
 }
