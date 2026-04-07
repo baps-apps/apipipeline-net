@@ -6,9 +6,8 @@
 #        or: ./scripts/publish-package.ps1 [VERSION] [GITHUB_PAT] (if executable)
 #
 # Features:
-# - Publishes both ApiPipeline.NET and ApiPipeline.NET.OpenTelemetry
+# - Publishes ApiPipeline.NET, ApiPipeline.NET.OpenTelemetry, and ApiPipeline.NET.Versioning
 # - Automatically deletes and republishes if package version already exists
-# - Publishes both .nupkg and .snupkg (symbols) when present
 # - Requires GitHub PAT with 'write:packages' and 'delete:packages' permissions
 
 param(
@@ -51,6 +50,10 @@ $Packages = @(
     @{
         Name        = "ApiPipeline.NET.OpenTelemetry"
         ProjectPath = Join-Path $RepoRoot "src" "ApiPipeline.NET.OpenTelemetry" "ApiPipeline.NET.OpenTelemetry.csproj"
+    },
+    @{
+        Name        = "ApiPipeline.NET.Versioning"
+        ProjectPath = Join-Path $RepoRoot "src" "ApiPipeline.NET.Versioning" "ApiPipeline.NET.Versioning.csproj"
     }
 )
 
