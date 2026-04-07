@@ -1,6 +1,7 @@
 using System.Net;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
+using ApiPipeline.NET.Pipeline;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,39 @@ namespace ApiPipeline.NET.Extensions;
 /// </summary>
 public static class WebApplicationExtensions
 {
+    /// <summary>
+    /// Configures the full API middleware pipeline using a phase-enforced fluent builder.
+    /// Middleware is always applied in the correct sequence regardless of the order
+    /// <c>With*</c> methods are called, preventing common ordering mistakes such as
+    /// placing response caching before authentication.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// app.UseApiPipeline(pipeline => pipeline
+    ///     .WithForwardedHeaders()
+    ///     .WithCorrelationId()
+    ///     .WithExceptionHandler()
+    ///     .WithCors()
+    ///     .WithAuthentication()
+    ///     .WithAuthorization()
+    ///     .WithRateLimiting()
+    ///     .WithResponseCompression()
+    ///     .WithResponseCaching()
+    ///     .WithSecurityHeaders()
+    ///     .WithVersionDeprecation()
+    /// );
+    /// </code>
+    /// </example>
+    public static WebApplication UseApiPipeline(
+        this WebApplication app,
+        Action<IApiPipelineBuilder> configure)
+    {
+        var builder = new ApiPipelineBuilder();
+        configure(builder);
+        builder.Build(app);
+        return app;
+    }
+
     /// <summary>
     /// Adds the correlation ID middleware to the HTTP pipeline.
     /// </summary>
