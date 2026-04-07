@@ -54,6 +54,14 @@ public sealed class ForwardedHeadersSettings
     public bool ClearDefaultProxies { get; set; } = false;
 
     /// <summary>
+    /// When <c>true</c> in Production, startup fails if forwarded headers are enabled but no
+    /// trusted proxies/networks are configured and <see cref="ClearDefaultProxies"/> is false.
+    /// This prevents silent fallback to proxy IPs, which can break client identity and cause
+    /// shared-bucket rate limiting behavior.
+    /// </summary>
+    public bool EnforceTrustedProxyConfigurationInProduction { get; set; } = true;
+
+    /// <summary>
     /// When <c>true</c>, suppresses the <c>Server: Kestrel</c> response header to prevent
     /// server fingerprinting. Recommended for production deployments.
     /// </summary>

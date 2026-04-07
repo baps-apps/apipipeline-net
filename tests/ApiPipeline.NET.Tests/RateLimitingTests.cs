@@ -261,4 +261,170 @@ public sealed class RateLimitingTests
         var options = new ApiPipeline.NET.Options.RateLimitingOptions();
         options.AnonymousFallback.Should().Be(ApiPipeline.NET.Options.AnonymousFallbackBehavior.Reject);
     }
+
+    /// <summary>
+    /// Verifies that successful responses include <c>X-RateLimit-Limit</c> and
+    /// <c>X-RateLimit-Reset</c> informational headers when rate limiting is enabled.
+    /// </summary>
+    [Fact]
+    public async Task RateLimit_Headers_Added_On_Successful_Request()
+    {
+        var config = TestAppBuilder.WithRateLimiting(permitLimit: 10, windowSeconds: 120);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/test");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("X-RateLimit-Limit").Should().ContainSingle("10");
+        response.Headers.GetValues("X-RateLimit-Reset").Should().ContainSingle("120");
+    }
+
+    /// <summary>
+    /// Verifies that <c>X-RateLimit-*</c> headers are also present on rejected (429) responses.
+    /// </summary>
+    [Fact]
+    public async Task RateLimit_Headers_Added_On_Rejected_Request()
+    {
+        var config = TestAppBuilder.WithRateLimiting(permitLimit: 1, windowSeconds: 60);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        await client.GetAsync("/test");
+        var rejected = await client.GetAsync("/test");
+
+        rejected.StatusCode.Should().Be((HttpStatusCode)429);
+        rejected.Headers.GetValues("X-RateLimit-Limit").Should().ContainSingle("1");
+        rejected.Headers.GetValues("X-RateLimit-Reset").Should().ContainSingle("60");
+    }
+
+    /// <summary>
+    /// Verifies that <c>X-RateLimit-*</c> headers are NOT emitted when
+    /// <c>EmitRateLimitHeaders</c> is set to <c>false</c>.
+    /// </summary>
+    [Fact]
+    public async Task RateLimit_Headers_Not_Added_When_Disabled()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RateLimitingOptions:Enabled"] = "true";
+            c["RateLimitingOptions:EmitRateLimitHeaders"] = "false";
+            c["RateLimitingOptions:DefaultPolicy"] = "strict";
+            c["RateLimitingOptions:Policies:0:Name"] = "strict";
+            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
+            c["RateLimitingOptions:Policies:0:PermitLimit"] = "10";
+            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
+            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
+            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var response = await client.GetAsync("/test");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.Contains("X-RateLimit-Limit").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies that requests with different <c>X-Api-Key</c> header values get independent
+    /// rate limit buckets when API key partitioning is enabled.
+    /// </summary>
+    [Fact]
+    public async Task ApiKey_Partitioning_Separates_Buckets()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RateLimitingOptions:Enabled"] = "true";
+            c["RateLimitingOptions:EnableApiKeyPartitioning"] = "true";
+            c["RateLimitingOptions:DefaultPolicy"] = "strict";
+            c["RateLimitingOptions:Policies:0:Name"] = "strict";
+            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
+            c["RateLimitingOptions:Policies:0:PermitLimit"] = "1";
+            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
+            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
+            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+
+        var req1 = new HttpRequestMessage(HttpMethod.Get, "/test");
+        req1.Headers.Add("X-Api-Key", "client-a");
+        (await client.SendAsync(req1)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var req2 = new HttpRequestMessage(HttpMethod.Get, "/test");
+        req2.Headers.Add("X-Api-Key", "client-b");
+        (await client.SendAsync(req2)).StatusCode.Should().Be(HttpStatusCode.OK,
+            "different API keys should have separate rate limit buckets");
+    }
+
+    /// <summary>
+    /// Verifies that the same API key is rate-limited correctly
+    /// (exhausts its own bucket without affecting others).
+    /// </summary>
+    [Fact]
+    public async Task ApiKey_Partitioning_Same_Key_Is_Limited()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["RateLimitingOptions:Enabled"] = "true";
+            c["RateLimitingOptions:EnableApiKeyPartitioning"] = "true";
+            c["RateLimitingOptions:DefaultPolicy"] = "strict";
+            c["RateLimitingOptions:Policies:0:Name"] = "strict";
+            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
+            c["RateLimitingOptions:Policies:0:PermitLimit"] = "1";
+            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
+            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
+            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        app.UseRateLimiting();
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+
+        var req1 = new HttpRequestMessage(HttpMethod.Get, "/test");
+        req1.Headers.Add("X-Api-Key", "client-a");
+        (await client.SendAsync(req1)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var req2 = new HttpRequestMessage(HttpMethod.Get, "/test");
+        req2.Headers.Add("X-Api-Key", "client-a");
+        (await client.SendAsync(req2)).StatusCode.Should().Be((HttpStatusCode)429,
+            "same API key should exhaust its own bucket");
+    }
+
+    /// <summary>
+    /// Verifies that API key partitioning is disabled by default and the header is ignored.
+    /// </summary>
+    [Fact]
+    public void RateLimitingOptions_ApiKeyPartitioning_Disabled_By_Default()
+    {
+        var options = new ApiPipeline.NET.Options.RateLimitingOptions();
+        options.EnableApiKeyPartitioning.Should().BeFalse();
+        options.ApiKeyHeader.Should().Be("X-Api-Key");
+    }
+
+    /// <summary>
+    /// Verifies that EmitRateLimitHeaders defaults to true.
+    /// </summary>
+    [Fact]
+    public void RateLimitingOptions_EmitRateLimitHeaders_DefaultIs_True()
+    {
+        var options = new ApiPipeline.NET.Options.RateLimitingOptions();
+        options.EmitRateLimitHeaders.Should().BeTrue();
+    }
 }

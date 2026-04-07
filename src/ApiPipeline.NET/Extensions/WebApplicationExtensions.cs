@@ -84,6 +84,9 @@ public static class WebApplicationExtensions
 
     /// <summary>
     /// Enables ASP.NET Core rate limiting when <see cref="RateLimitingOptions.Enabled"/> is true.
+    /// When <see cref="RateLimitingOptions.EmitRateLimitHeaders"/> is also true, adds
+    /// <c>X-RateLimit-Limit</c> and <c>X-RateLimit-Reset</c> informational headers
+    /// to every response for client-side adaptive backoff.
     /// </summary>
     /// <param name="app">The web application to configure.</param>
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
@@ -106,6 +109,27 @@ public static class WebApplicationExtensions
             "Note: named policies are registered at startup — adding new policies requires an app restart.",
             settings.DefaultPolicy,
             string.Join(", ", policyNames));
+
+        if (settings.EmitRateLimitHeaders)
+        {
+            app.Use(async (context, next) =>
+            {
+                context.Response.OnStarting(static state =>
+                {
+                    var ctx = (HttpContext)state;
+                    if (ctx.Items["ApiPipeline.RateLimitPolicyConfig"] is RateLimitPolicy policy)
+                    {
+                        ctx.Response.Headers["X-RateLimit-Limit"] = policy.PermitLimit.ToString();
+                        if (policy.WindowSeconds.HasValue)
+                        {
+                            ctx.Response.Headers["X-RateLimit-Reset"] = policy.WindowSeconds.Value.ToString();
+                        }
+                    }
+                    return Task.CompletedTask;
+                }, context);
+                await next(context);
+            });
+        }
 
         app.UseRateLimiter();
         return app;
@@ -170,6 +194,8 @@ public static class WebApplicationExtensions
 
     /// <summary>
     /// Enables response caching when <see cref="ResponseCachingSettings.Enabled"/> is true.
+    /// When CORS is also enabled, a <c>Vary: Origin</c> header is automatically appended
+    /// to prevent a response cached for origin A from being served to origin B.
     /// </summary>
     /// <param name="app">The web application to configure.</param>
     /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
@@ -181,7 +207,47 @@ public static class WebApplicationExtensions
             return app;
         }
 
+        var corsSettings = app.Services.GetService<IOptions<CorsSettings>>()?.Value;
+        if (corsSettings is { Enabled: true })
+        {
+            app.Use(async (context, next) =>
+            {
+                context.Response.OnStarting(static state =>
+                {
+                    var ctx = (HttpContext)state;
+                    var existing = ctx.Response.Headers.Vary.ToString();
+                    if (string.IsNullOrEmpty(existing) ||
+                        !existing.Contains("Origin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ctx.Response.Headers.Append("Vary", "Origin");
+                    }
+                    return Task.CompletedTask;
+                }, context);
+                await next(context);
+            });
+        }
+
         ((IApplicationBuilder)app).UseResponseCaching();
+        return app;
+    }
+
+    /// <summary>
+    /// Enables ASP.NET Core Output Caching when <see cref="OutputCachingSettings.Enabled"/> is true.
+    /// Output Caching is the modern replacement for <c>ResponseCachingMiddleware</c>,
+    /// supporting distributed stores, tag-based eviction, and per-endpoint revalidation.
+    /// Place after <c>UseAuthorization</c> to prevent caching of unauthorized responses.
+    /// </summary>
+    /// <param name="app">The web application to configure.</param>
+    /// <returns>The same <see cref="WebApplication"/> instance for chaining.</returns>
+    public static WebApplication UseOutputCaching(this WebApplication app)
+    {
+        var settings = app.Services.GetRequiredService<IOptions<OutputCachingSettings>>().Value;
+        if (!settings.Enabled)
+        {
+            return app;
+        }
+
+        app.UseOutputCache();
         return app;
     }
 
@@ -285,11 +351,22 @@ public static class WebApplicationExtensions
 
         var logger = app.Services.GetRequiredService<ILoggerFactory>()
             .CreateLogger("ApiPipeline.NET.ForwardedHeaders");
+        var environment = app.Services.GetRequiredService<IHostEnvironment>();
+        var hasTrustedProxyConfig =
+            (settings.KnownProxies is { Length: > 0 })
+            || (settings.KnownNetworks is { Length: > 0 });
 
-        if (!settings.ClearDefaultProxies
-            && (settings.KnownProxies is null || settings.KnownProxies.Length == 0)
-            && (settings.KnownNetworks is null || settings.KnownNetworks.Length == 0))
+        if (!settings.ClearDefaultProxies && !hasTrustedProxyConfig)
         {
+            if (environment.IsProduction() && settings.EnforceTrustedProxyConfigurationInProduction)
+            {
+                throw new InvalidOperationException(
+                    "ForwardedHeaders is enabled in Production but no KnownProxies/KnownNetworks are configured " +
+                    "and ClearDefaultProxies is false. Configure trusted proxies/networks or set " +
+                    "ForwardedHeadersOptions:EnforceTrustedProxyConfigurationInProduction=false " +
+                    "to explicitly accept unsafe behavior.");
+            }
+
             logger.LogWarning(
                 "ForwardedHeaders is enabled but no KnownProxies or KnownNetworks are configured " +
                 "and ClearDefaultProxies is false. Behind a reverse proxy (Kubernetes, Nginx, ALB), " +

@@ -75,9 +75,37 @@ public sealed partial class CorrelationIdMiddleware : IMiddleware
         ApiPipelineTelemetry.SetCorrelationIdOnCurrentActivity(correlationId);
         ApiPipelineTelemetry.RecordCorrelationIdProcessed();
 
-        using (_logger.BeginScope(new[] { new KeyValuePair<string, object?>("CorrelationId", (object?)correlationId) }))
+        using (_logger.BeginScope(new CorrelationScope(correlationId)))
         {
             await next(context);
+        }
+    }
+
+    /// <summary>
+    /// Lightweight value-type scope state that avoids per-request array allocation.
+    /// Loggers that accept <see cref="IReadOnlyList{T}"/> of <see cref="KeyValuePair{TKey,TValue}"/>
+    /// can enumerate the single correlation ID entry without heap allocation at the call site.
+    /// </summary>
+    private readonly struct CorrelationScope(string correlationId) : IReadOnlyList<KeyValuePair<string, object?>>
+    {
+        public int Count => 1;
+
+        public KeyValuePair<string, object?> this[int index] => index == 0
+            ? new("CorrelationId", correlationId)
+            : throw new ArgumentOutOfRangeException(nameof(index));
+
+        public Enumerator GetEnumerator() => new(correlationId);
+        IEnumerator<KeyValuePair<string, object?>> IEnumerable<KeyValuePair<string, object?>>.GetEnumerator() => new Enumerator(correlationId);
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => new Enumerator(correlationId);
+
+        public struct Enumerator(string correlationId) : IEnumerator<KeyValuePair<string, object?>>
+        {
+            private bool _moved;
+            public readonly KeyValuePair<string, object?> Current => new("CorrelationId", correlationId);
+            readonly object System.Collections.IEnumerator.Current => Current;
+            public bool MoveNext() => !_moved && (_moved = true);
+            public void Reset() => _moved = false;
+            public readonly void Dispose() { }
         }
     }
 }

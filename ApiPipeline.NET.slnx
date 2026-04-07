@@ -1,11 +1,14 @@
 <Solution>
+  <Folder Name="/perf/">
+    <Project Path="perf/ApiPipeline.NET.Perf/ApiPipeline.NET.Perf.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/ApiPipeline.NET.Sample/ApiPipeline.NET.Sample.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ApiPipeline.NET/ApiPipeline.NET.csproj" />
     <Project Path="src/ApiPipeline.NET.OpenTelemetry/ApiPipeline.NET.OpenTelemetry.csproj" />
-    <Project Path="src/ApiPipeline.NET.OutputCaching/ApiPipeline.NET.OutputCaching.csproj" />
+
     <Project Path="src/ApiPipeline.NET.Versioning/ApiPipeline.NET.Versioning.csproj" />
   </Folder>
   <Folder Name="/tests/">

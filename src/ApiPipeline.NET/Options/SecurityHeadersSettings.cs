@@ -58,6 +58,7 @@ public sealed class SecurityHeadersSettings
     /// <summary>
     /// The value of the <c>X-Frame-Options</c> header. Valid values: <c>DENY</c>, <c>SAMEORIGIN</c>.
     /// </summary>
+    [RegularExpression("^(DENY|SAMEORIGIN)$", ErrorMessage = "XFrameOptionsValue must be 'DENY' or 'SAMEORIGIN'.")]
     public string XFrameOptionsValue { get; set; } = "DENY";
 
     /// <summary>

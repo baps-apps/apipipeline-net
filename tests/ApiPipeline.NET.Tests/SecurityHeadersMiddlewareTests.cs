@@ -46,8 +46,8 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeaders:Enabled"] = "true";
-            c["SecurityHeaders:AddXFrameOptions"] = "false";
+            c["SecurityHeadersOptions:Enabled"] = "true";
+            c["SecurityHeadersOptions:AddXFrameOptions"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
         app.UseSecurityHeaders();
@@ -215,8 +215,8 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeaders:Enabled"] = "true";
-            c["SecurityHeaders:ContentSecurityPolicy"] = "default-src 'none'";
+            c["SecurityHeadersOptions:Enabled"] = "true";
+            c["SecurityHeadersOptions:ContentSecurityPolicy"] = "default-src 'none'";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.UseSecurityHeaders();
@@ -258,9 +258,9 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeaders:Enabled"] = "true";
-            c["SecurityHeaders:EnableStrictTransportSecurity"] = "true";
-            c["SecurityHeaders:StrictTransportSecurityPreload"] = "true";
+            c["SecurityHeadersOptions:Enabled"] = "true";
+            c["SecurityHeadersOptions:EnableStrictTransportSecurity"] = "true";
+            c["SecurityHeadersOptions:StrictTransportSecurityPreload"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(
             config, environment: "Production");
@@ -283,8 +283,8 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeaders:Enabled"] = "true";
-            c["SecurityHeaders:PermissionsPolicy"] = "camera=(), microphone=()";
+            c["SecurityHeadersOptions:Enabled"] = "true";
+            c["SecurityHeadersOptions:PermissionsPolicy"] = "camera=(), microphone=()";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.UseSecurityHeaders();

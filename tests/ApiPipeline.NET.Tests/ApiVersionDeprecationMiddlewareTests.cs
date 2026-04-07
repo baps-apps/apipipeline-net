@@ -1,7 +1,9 @@
 using System.Net;
 using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Versioning;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Tests;
@@ -96,5 +98,48 @@ public sealed class ApiVersionDeprecationMiddlewareTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("Deprecation").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies that a request targeting a deprecated API version emits Deprecation, Sunset,
+    /// and Link headers when an IApiVersionReader is registered.
+    /// </summary>
+    [Fact]
+    public async Task Deprecated_Version_Emits_Deprecation_Sunset_And_Link_Headers()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiVersionDeprecationOptions:Enabled"] = "true";
+            c["ApiVersionDeprecationOptions:PathPrefix"] = "/api";
+            c["ApiVersionDeprecationOptions:DeprecatedVersions:0:Version"] = "1.0";
+            c["ApiVersionDeprecationOptions:DeprecatedVersions:0:DeprecationDate"] = "Tue, 01 Jul 2025 00:00:00 GMT";
+            c["ApiVersionDeprecationOptions:DeprecatedVersions:0:SunsetDate"] = "Thu, 01 Jan 2026 00:00:00 GMT";
+            c["ApiVersionDeprecationOptions:DeprecatedVersions:0:SunsetLink"] = "https://docs.example.com/v1-sunset";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(
+            config,
+            configureServices: services => services.AddSingleton<IApiVersionReader, TestHeaderApiVersionReader>());
+        app.UseApiVersionDeprecation();
+        app.MapGet("/api/users", () => Results.Ok("ok"));
+        await app.StartAsync();
+
+        var client = app.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/users");
+        request.Headers.Add("X-Test-Api-Version", "1.0");
+
+        var response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("Deprecation").Single().Should().Be("Tue, 01 Jul 2025 00:00:00 GMT");
+        response.Headers.GetValues("Sunset").Single().Should().Be("Thu, 01 Jan 2026 00:00:00 GMT");
+        response.Headers.GetValues("Link").Single().Should().Contain("https://docs.example.com/v1-sunset");
+    }
+
+    private sealed class TestHeaderApiVersionReader : IApiVersionReader
+    {
+        public string? ReadApiVersion(HttpContext context) =>
+            context.Request.Headers.TryGetValue("X-Test-Api-Version", out var value)
+                ? value.ToString()
+                : null;
     }
 }

@@ -67,18 +67,9 @@ using Asp.Versioning;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddCorrelationId()
-    .AddRateLimiting(builder.Configuration)
-    .AddResponseCompression(builder.Configuration)
-    .AddResponseCaching(builder.Configuration)
-    .AddSecurityHeaders(builder.Configuration)
-    .AddCors(builder.Configuration)
+    .AddApiPipeline(builder.Configuration)
     .AddApiPipelineVersioning(builder.Configuration)
-    .AddRequestLimits(builder.Configuration)
-    .AddForwardedHeaders(builder.Configuration)
-    .AddRequestSizeTracking()
-    .AddRequestValidation<SampleRequestValidationFilter>()
-    .AddApiPipelineExceptionHandler();
+    .AddRequestValidation<SampleRequestValidationFilter>();
 
 builder.AddApiPipelineObservability();
 
@@ -231,7 +222,7 @@ app.MapGet("/weather", handler)
 - **Enabled**: When `false`, `UseResponseCaching` is not added.
 - **SizeLimitBytes**: Upper bound on the in‑memory cache size.
 - **UseCaseSensitivePaths**: Whether `/Weather` and `/weather` are treated as different cache keys.
-- **PreferOutputCaching**: When `true`, signals intent to migrate to the **ApiPipeline.NET.OutputCaching** satellite; core does not enable distributed output cache from this flag alone.
+- **PreferOutputCaching**: When `true`, signals intent to migrate to Output Caching via `WithOutputCaching()` in the pipeline. This flag does not change behavior on its own.
 
 **How it is used**:
 
@@ -245,7 +236,7 @@ app.MapGet("/weather", handler)
 
 ### SecurityHeaders (`SecurityHeaders`)
 
-**Purpose**: Applies API-relevant security HTTP headers (HSTS, Referrer‑Policy, X‑Content‑Type‑Options) in a central place. Browser-only headers (CSP, X‑Frame‑Options, Permissions‑Policy) are intentionally excluded since APIs return JSON, not HTML.
+**Purpose**: Applies security HTTP headers (HSTS, Referrer‑Policy, X‑Content‑Type‑Options) and optional browser-facing headers (`Content-Security-Policy`, `X-Frame-Options`, `Permissions-Policy`) in a central place.
 
 **Configuration**:
 
@@ -394,8 +385,8 @@ app.MapGet("/weather", handler)
 
 **Registration**:
 
-- `AddRequestSizeTracking()` registers `RequestSizeMiddleware` in DI.
-- Call `app.UseRequestSizeTracking()` **after** `UseApiPipelineForwardedHeaders` when you build the pipeline manually. The `UseApiPipeline` fluent helper does not include request-size middleware yet; this sample calls `AddRequestSizeTracking()` so you can add `UseRequestSizeTracking()` in the right place for your host (see `RequestSizeMiddleware` XML remarks in the core library).
+- `AddApiPipeline(builder.Configuration)` already registers request-size tracking.
+- Call `app.UseRequestSizeTracking()` **immediately after** `UseApiPipelineForwardedHeaders()` for accurate source IP context.
 
 ---
 
@@ -410,16 +401,17 @@ app.MapGet("/weather", handler)
 
 ---
 
-### `PreferOutputCaching` and the Output Caching satellite
+### Output Caching (migration from Response Caching)
 
-**Purpose**: `ResponseCachingOptions.PreferOutputCaching` is a **migration signal** in configuration only; the core library does not enable distributed output caching.
+**Purpose**: Output Caching is the modern replacement for `ResponseCachingMiddleware`, supporting distributed stores (Redis), tag-based eviction, and per-endpoint policies.
 
 **When migrating**:
 
-1. Add a project reference to `ApiPipeline.NET.OutputCaching` (this sample already references it).
-2. Call `AddApiPipelineOutputCaching()` in `Program.cs` after other service registration.
-3. Call `UseApiPipelineOutputCaching()` after `UseAuthorization` in the pipeline (see satellite XML docs).
-4. Set `"PreferOutputCaching": true` in `ResponseCachingOptions` so operators know the intent.
+1. Enable output caching: set `"OutputCachingOptions": { "Enabled": true }` in `appsettings.json`.
+2. Register it: call `AddApiPipeline(configuration, options => { options.AddOutputCaching = true; })` or `AddOutputCaching(configuration)`.
+3. Add `WithOutputCaching()` to the pipeline (after auth, alongside or instead of `WithResponseCaching()`).
+4. Attach per-endpoint policies via `.CacheOutput()`.
+5. Set `"PreferOutputCaching": true` in `ResponseCachingOptions` so operators know the intent.
 
 ---
 

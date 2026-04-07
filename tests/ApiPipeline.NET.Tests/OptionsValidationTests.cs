@@ -1,4 +1,5 @@
 using FluentAssertions;
+using ApiPipeline.NET.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Tests;
@@ -130,6 +131,48 @@ public sealed class OptionsValidationTests
 
         var act = () => app.StartAsync();
         await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>
+    /// Verifies that enabling CORS with an empty AllowedMethods configuration fails startup validation.
+    /// </summary>
+    [Fact]
+    public async Task Cors_Enabled_With_Empty_AllowedMethods_Fails_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["CorsOptions:Enabled"] = "true";
+            c["CorsOptions:AllowedMethods:0"] = " ";
+            c["CorsOptions:AllowedOrigins:0"] = "https://example.com";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage("*AllowedMethods*");
+    }
+
+    /// <summary>
+    /// Verifies that enabling CORS with an empty AllowedHeaders configuration fails startup validation.
+    /// </summary>
+    [Fact]
+    public async Task Cors_Enabled_With_Empty_AllowedHeaders_Fails_Validation()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["CorsOptions:Enabled"] = "true";
+            c["CorsOptions:AllowedHeaders:0"] = " ";
+            c["CorsOptions:AllowedOrigins:0"] = "https://example.com";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage("*AllowedHeaders*");
     }
 
     /// <summary>
@@ -389,5 +432,30 @@ public sealed class OptionsValidationTests
 
         var act = () => app.StartAsync();
         await act.Should().NotThrowAsync();
+    }
+
+    /// <summary>
+    /// Verifies strict production forwarding posture by failing startup when no trusted proxies/networks
+    /// are configured and strict enforcement is enabled.
+    /// </summary>
+    [Fact]
+    public async Task ForwardedHeaders_Production_Without_TrustedProxies_Throws_When_Enforced()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ForwardedHeadersOptions:Enabled"] = "true";
+            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "false";
+            c["ForwardedHeadersOptions:EnforceTrustedProxyConfigurationInProduction"] = "true";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
+        var act = () =>
+        {
+            app.UseApiPipelineForwardedHeaders();
+            return Task.CompletedTask;
+        };
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*EnforceTrustedProxyConfigurationInProduction*");
     }
 }

@@ -5,13 +5,13 @@
     "AllowedOrigins": [],
     "AllowCredentials": false
   },
-  "SecurityHeaders": {
+  "SecurityHeadersOptions": {
     "Enabled": true,
     "EnableStrictTransportSecurity": false
   },
   "RateLimitingOptions": {
     "Enabled": true,
     "DefaultPolicy": "permissive",
-    "AnonymousFallback": "RateLimit"
+    "AnonymousFallback": "Reject"
   }
 }

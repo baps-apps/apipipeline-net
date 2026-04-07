@@ -8,7 +8,8 @@ internal static class TestAppBuilder
     public static async Task<WebApplication> CreateAppAsync(
         Dictionary<string, string?> config,
         string? environment = null,
-        bool addExceptionHandler = false)
+        bool addExceptionHandler = false,
+        Action<IServiceCollection>? configureServices = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -27,6 +28,7 @@ internal static class TestAppBuilder
             .AddRateLimiting(builder.Configuration)
             .AddResponseCompression(builder.Configuration)
             .AddResponseCaching(builder.Configuration)
+            .AddOutputCaching(builder.Configuration)
             .AddSecurityHeaders(builder.Configuration)
             .AddCors(builder.Configuration)
             .AddApiVersionDeprecation(builder.Configuration)
@@ -38,6 +40,8 @@ internal static class TestAppBuilder
         {
             builder.Services.AddApiPipelineExceptionHandler();
         }
+
+        configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
         await Task.Yield();
@@ -54,10 +58,11 @@ internal static class TestAppBuilder
             ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
             ["ResponseCompressionOptions:Enabled"] = "false",
             ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeaders:Enabled"] = "false",
+            ["SecurityHeadersOptions:Enabled"] = "false",
             ["CorsOptions:Enabled"] = "false",
             ["ApiVersionDeprecationOptions:Enabled"] = "false",
-            ["ForwardedHeadersOptions:Enabled"] = "true"
+            ["ForwardedHeadersOptions:Enabled"] = "true",
+            ["OutputCachingOptions:Enabled"] = "false"
         };
 
         configure?.Invoke(config);
@@ -87,7 +92,7 @@ internal static class TestAppBuilder
     {
         return MinimalConfig(config =>
         {
-            config["SecurityHeaders:Enabled"] = enabled.ToString().ToLowerInvariant();
+            config["SecurityHeadersOptions:Enabled"] = enabled.ToString().ToLowerInvariant();
         });
     }
 }

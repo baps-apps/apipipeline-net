@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace ApiPipeline.NET.Options;
 
 /// <summary>
@@ -9,6 +7,9 @@ namespace ApiPipeline.NET.Options;
 /// </summary>
 public sealed class CorsSettings
 {
+    internal static readonly string[] SafeDefaultAllowedMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+    internal static readonly string[] SafeDefaultAllowedHeaders = ["Content-Type", "Authorization", "X-Correlation-Id"];
+
     /// <summary>
     /// Indicates whether CORS is enabled.
     /// </summary>
@@ -23,22 +24,19 @@ public sealed class CorsSettings
     /// <summary>
     /// The set of allowed origins. When <c>null</c> or empty, all origins are rejected in production scenarios.
     /// </summary>
-    [MinLength(0)]
     public string[]? AllowedOrigins { get; set; }
 
     /// <summary>
     /// The set of allowed HTTP methods. A value containing <c>"*"</c> permits any method.
     /// </summary>
-    [MinLength(0)]
-    public string[]? AllowedMethods { get; set; } = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+    public string[]? AllowedMethods { get; set; } = SafeDefaultAllowedMethods;
 
     /// <summary>
     /// The set of allowed request headers. A value containing <c>"*"</c> permits any header.
     /// Defaults to a minimal explicit list covering typical API use cases.
     /// Set to <c>["*"]</c> explicitly if unrestricted headers are required.
     /// </summary>
-    [MinLength(0)]
-    public string[]? AllowedHeaders { get; set; } = ["Content-Type", "Authorization", "X-Correlation-Id"];
+    public string[]? AllowedHeaders { get; set; } = SafeDefaultAllowedHeaders;
 
     /// <summary>
     /// Indicates whether credentials are allowed on CORS requests.

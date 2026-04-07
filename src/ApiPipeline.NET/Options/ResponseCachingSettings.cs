@@ -15,7 +15,7 @@ public sealed class ResponseCachingSettings
     /// <summary>
     /// The approximate size limit, in bytes, of the in-memory response cache.
     /// </summary>
-    [Range(0, long.MaxValue)]
+    [Range(1, long.MaxValue)]
     public long? SizeLimitBytes { get; set; }
 
     /// <summary>
@@ -24,9 +24,9 @@ public sealed class ResponseCachingSettings
     public bool UseCaseSensitivePaths { get; set; } = false;
 
     /// <summary>
-    /// When <c>true</c>, consumers should use the <c>ApiPipeline.NET.OutputCaching</c> satellite
-    /// package instead, which provides .NET 7+ Output Caching with distributed store support (Redis).
-    /// This flag does nothing in the core package — it is a signal for migration.
+    /// When <c>true</c>, consumers should enable <c>WithOutputCaching()</c> in the pipeline,
+    /// which provides .NET 7+ Output Caching with distributed store support.
+    /// This flag does not change behavior — it is a documentation signal for migration.
     /// </summary>
     public bool PreferOutputCaching { get; set; } = false;
 }

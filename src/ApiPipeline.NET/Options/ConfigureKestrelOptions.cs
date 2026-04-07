@@ -4,19 +4,30 @@ using Microsoft.Extensions.Options;
 namespace ApiPipeline.NET.Options;
 
 /// <summary>
-/// Applies <see cref="RequestLimitsOptions"/> to Kestrel server limits via the
-/// options infrastructure, ensuring validated options are used (not raw configuration).
+/// Applies <see cref="RequestLimitsOptions"/> and <see cref="ForwardedHeadersSettings.SuppressServerHeader"/>
+/// to Kestrel server options via the options infrastructure, ensuring validated options are used (not raw configuration).
 /// Registered automatically by <see cref="Extensions.ServiceCollectionExtensions.AddRequestLimits"/>.
 /// </summary>
 internal sealed class ConfigureKestrelOptions : IConfigureOptions<KestrelServerOptions>
 {
     private readonly IOptions<RequestLimitsOptions> _requestLimits;
+    private readonly IOptions<ForwardedHeadersSettings> _forwardedHeaders;
 
-    public ConfigureKestrelOptions(IOptions<RequestLimitsOptions> requestLimits)
-        => _requestLimits = requestLimits;
+    public ConfigureKestrelOptions(
+        IOptions<RequestLimitsOptions> requestLimits,
+        IOptions<ForwardedHeadersSettings> forwardedHeaders)
+    {
+        _requestLimits = requestLimits;
+        _forwardedHeaders = forwardedHeaders;
+    }
 
     public void Configure(KestrelServerOptions options)
     {
+        if (_forwardedHeaders.Value.SuppressServerHeader)
+        {
+            options.AddServerHeader = false;
+        }
+
         var limits = _requestLimits.Value;
         if (!limits.Enabled)
         {

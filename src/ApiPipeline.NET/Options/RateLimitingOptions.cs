@@ -55,6 +55,25 @@ public sealed class RateLimitingOptions : IValidatableObject
     /// </summary>
     public AnonymousFallbackBehavior AnonymousFallback { get; set; } = AnonymousFallbackBehavior.Reject;
 
+    /// <summary>
+    /// When <c>true</c>, adds <c>X-RateLimit-Limit</c> and <c>X-RateLimit-Reset</c> headers
+    /// to all rate-limited responses, enabling client-side adaptive backoff.
+    /// </summary>
+    public bool EmitRateLimitHeaders { get; set; } = true;
+
+    /// <summary>
+    /// When <c>true</c>, requests carrying the <see cref="ApiKeyHeader"/> header are partitioned
+    /// by API key for rate limiting, providing per-client SLAs for machine-to-machine traffic
+    /// without requiring full authentication infrastructure.
+    /// </summary>
+    public bool EnableApiKeyPartitioning { get; set; } = false;
+
+    /// <summary>
+    /// The header name used for API key partitioning. Only used when
+    /// <see cref="EnableApiKeyPartitioning"/> is <c>true</c>.
+    /// </summary>
+    public string ApiKeyHeader { get; set; } = "X-Api-Key";
+
     /// <inheritdoc />
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

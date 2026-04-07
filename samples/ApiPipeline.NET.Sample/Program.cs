@@ -17,18 +17,8 @@ using Asp.Versioning;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddCorrelationId()
-    .AddRateLimiting(builder.Configuration)
-    .AddResponseCompression(builder.Configuration)
-    .AddResponseCaching(builder.Configuration)
-    .AddSecurityHeaders(builder.Configuration)
-    .AddCors(builder.Configuration)
-    .AddApiPipelineVersioning(builder.Configuration)
-    .AddRequestLimits(builder.Configuration)
-    .AddForwardedHeaders(builder.Configuration)
-    .AddRequestSizeTracking()
-    .AddRequestValidation<SampleRequestValidationFilter>()
-    .AddApiPipelineExceptionHandler();
+    .AddApiPipeline(builder.Configuration)
+    .AddRequestValidation<SampleRequestValidationFilter>();
 
 builder.AddApiPipelineObservability();
 
@@ -49,11 +39,11 @@ var app = builder.Build();
 // Phase-enforced pipeline (order is fixed regardless of With* call order in the lambda).
 // Register WithRequestValidation only when AddRequestValidation<T> was called above.
 //
-// Request body size histogram: AddRequestSizeTracking registers the middleware type; for ideal
-// ordering (immediately after forwarded headers), build the early middleware manually — see
-// README "Scenario: Request body metrics".
+// Request body size histogram should run immediately after forwarded headers for accurate client IP context.
+app.UseApiPipelineForwardedHeaders();
+app.UseRequestSizeTracking();
+
 app.UseApiPipeline(pipeline => pipeline
-    .WithForwardedHeaders()
     .WithCorrelationId()
     .WithExceptionHandler()
     .WithHttpsRedirection()

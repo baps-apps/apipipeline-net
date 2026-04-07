@@ -23,7 +23,7 @@ public static class ApiPipelineConfigurationKeys
     /// <summary>
     /// The configuration section name for security header settings.
     /// </summary>
-    public const string SecurityHeaders = "SecurityHeaders";
+    public const string SecurityHeaders = "SecurityHeadersOptions";
 
     /// <summary>
     /// The configuration section name for CORS options.
@@ -44,5 +44,10 @@ public static class ApiPipelineConfigurationKeys
     /// The configuration section name for forwarded headers options.
     /// </summary>
     public const string ForwardedHeaders = "ForwardedHeadersOptions";
+
+    /// <summary>
+    /// The configuration section name for output caching options.
+    /// </summary>
+    public const string OutputCaching = "OutputCachingOptions";
 }
 

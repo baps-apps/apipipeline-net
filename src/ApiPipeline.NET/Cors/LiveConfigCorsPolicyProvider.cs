@@ -14,6 +14,8 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
 {
     private readonly IOptionsMonitor<CorsSettings> _settingsMonitor;
     private readonly IHostEnvironment _environment;
+    private volatile CorsPolicy _configuredPolicy;
+    private readonly CorsPolicy _allowAllPolicy;
 
     public LiveConfigCorsPolicyProvider(
         IOptionsMonitor<CorsSettings> settingsMonitor,
@@ -21,6 +23,13 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
     {
         _settingsMonitor = settingsMonitor;
         _environment = environment;
+        _allowAllPolicy = new CorsPolicyBuilder()
+            .AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .Build();
+        _configuredPolicy = BuildConfiguredPolicy(_settingsMonitor.CurrentValue);
+        _settingsMonitor.OnChange(settings => _configuredPolicy = BuildConfiguredPolicy(settings));
     }
 
     public Task<CorsPolicy?> GetPolicyAsync(HttpContext context, string? policyName)
@@ -29,14 +38,14 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
 
         if (_environment.IsDevelopment() && settings.AllowAllInDevelopment)
         {
-            var allowAll = new CorsPolicyBuilder()
-                .AllowAnyOrigin()
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .Build();
-            return Task.FromResult<CorsPolicy?>(allowAll);
+            return Task.FromResult<CorsPolicy?>(_allowAllPolicy);
         }
 
+        return Task.FromResult<CorsPolicy?>(_configuredPolicy);
+    }
+
+    private static CorsPolicy BuildConfiguredPolicy(CorsSettings settings)
+    {
         var builder = new CorsPolicyBuilder();
 
         if (settings.AllowedOrigins is { Length: > 0 })
@@ -52,22 +61,42 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
             });
         }
 
-        if (settings.AllowedMethods is { Length: > 0 } && !settings.AllowedMethods.Contains("*"))
+        var methods = settings.AllowedMethods?
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .ToArray();
+        if (methods is { Length: > 0 })
         {
-            builder.WithMethods(settings.AllowedMethods);
+            if (methods.Contains("*"))
+            {
+                builder.AllowAnyMethod();
+            }
+            else
+            {
+                builder.WithMethods(methods);
+            }
         }
         else
         {
-            builder.AllowAnyMethod();
+            builder.WithMethods(CorsSettings.SafeDefaultAllowedMethods);
         }
 
-        if (settings.AllowedHeaders is { Length: > 0 } && !settings.AllowedHeaders.Contains("*"))
+        var headers = settings.AllowedHeaders?
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .ToArray();
+        if (headers is { Length: > 0 })
         {
-            builder.WithHeaders(settings.AllowedHeaders);
+            if (headers.Contains("*"))
+            {
+                builder.AllowAnyHeader();
+            }
+            else
+            {
+                builder.WithHeaders(headers);
+            }
         }
         else
         {
-            builder.AllowAnyHeader();
+            builder.WithHeaders(CorsSettings.SafeDefaultAllowedHeaders);
         }
 
         if (settings.AllowCredentials)
@@ -75,6 +104,6 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
             builder.AllowCredentials();
         }
 
-        return Task.FromResult<CorsPolicy?>(builder.Build());
+        return builder.Build();
     }
 }

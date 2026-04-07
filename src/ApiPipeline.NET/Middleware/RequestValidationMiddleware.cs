@@ -40,6 +40,8 @@ public sealed class RequestValidationMiddleware : IMiddleware
                     HttpContext = context,
                     ProblemDetails =
                     {
+                        Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                        Title = "Bad Request",
                         Status = result.StatusCode,
                         Detail = result.Detail
                     }

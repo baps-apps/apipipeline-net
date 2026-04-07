@@ -1,7 +1,11 @@
 using System.Net;
+using ApiPipeline.NET.Cors;
 using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Options;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.FileProviders;
 
 namespace ApiPipeline.NET.Tests;
 
@@ -205,5 +209,71 @@ public sealed class CorsTests
 
         var response = await client.SendAsync(request);
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Verifies that CORS policy reflects runtime configuration changes through IOptionsMonitor.
+    /// </summary>
+    [Fact]
+    public async Task Cors_Reload_Updates_AllowedOrigins_Without_Restart()
+    {
+        var monitor = new TestOptionsMonitor(new CorsSettings
+        {
+            Enabled = true,
+            AllowedOrigins = ["https://old.example.com"],
+            AllowedMethods = ["GET"],
+            AllowedHeaders = ["Content-Type"]
+        });
+
+        var provider = new LiveConfigCorsPolicyProvider(monitor, new TestHostEnvironment(Environments.Production));
+        var firstPolicy = await provider.GetPolicyAsync(new DefaultHttpContext(), null);
+        firstPolicy!.Origins.Should().Contain("https://old.example.com");
+
+        monitor.Update(new CorsSettings
+        {
+            Enabled = true,
+            AllowedOrigins = ["https://new.example.com"],
+            AllowedMethods = ["GET"],
+            AllowedHeaders = ["Content-Type"]
+        });
+
+        var secondPolicy = await provider.GetPolicyAsync(new DefaultHttpContext(), null);
+        secondPolicy!.Origins.Should().NotContain("https://old.example.com");
+        secondPolicy.Origins.Should().Contain("https://new.example.com");
+    }
+
+    private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = environmentName;
+        public string ApplicationName { get; set; } = "tests";
+        public string ContentRootPath { get; set; } = "/";
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    }
+
+    private sealed class TestOptionsMonitor(CorsSettings initial) : IOptionsMonitor<CorsSettings>
+    {
+        private CorsSettings _current = initial;
+        private event Action<CorsSettings, string?>? Changed;
+
+        public CorsSettings CurrentValue => _current;
+
+        public CorsSettings Get(string? name) => _current;
+
+        public IDisposable OnChange(Action<CorsSettings, string?> listener)
+        {
+            Changed += listener;
+            return new ChangeToken(listener, this);
+        }
+
+        public void Update(CorsSettings next)
+        {
+            _current = next;
+            Changed?.Invoke(next, null);
+        }
+
+        private sealed class ChangeToken(Action<CorsSettings, string?> listener, TestOptionsMonitor monitor) : IDisposable
+        {
+            public void Dispose() => monitor.Changed -= listener;
+        }
     }
 }

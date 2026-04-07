@@ -12,6 +12,34 @@ namespace ApiPipeline.NET.Tests;
 public sealed class ApiPipelineSmokeTests
 {
     /// <summary>
+    /// Verifies that the aggregate AddApiPipeline registration path wires the default
+    /// service set sufficiently for pipeline startup and correlation-id emission.
+    /// </summary>
+    [Fact]
+    public async Task AddApiPipeline_Registers_Default_ServiceSet()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        var config = TestAppBuilder.MinimalConfig();
+        builder.Configuration.AddInMemoryCollection(config);
+
+        builder.Services.AddRouting();
+        builder.Services.AddAuthentication(defaultScheme: "Test")
+            .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+        builder.Services.AddAuthorization();
+        builder.Services.AddApiPipeline(builder.Configuration);
+
+        await using var app = builder.Build();
+        app.UseApiPipeline(pipeline => pipeline.WithCorrelationId());
+        app.MapGet("/ping", () => Results.Ok("pong"));
+        await app.StartAsync();
+
+        var response = await app.GetTestClient().GetAsync("/ping");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
+    }
+
+    /// <summary>
     /// Verifies that all pipeline features can be registered and mounted together,
     /// that the app starts without throwing, and that a successful request receives
     /// both the correlation-id and security headers added by the middleware stack.
@@ -38,7 +66,7 @@ public sealed class ApiPipelineSmokeTests
             ["RateLimitingOptions:Policies:1:QueueProcessingOrder"] = "OldestFirst",
             ["ResponseCompressionOptions:Enabled"] = "false",
             ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeaders:Enabled"] = "true",
+            ["SecurityHeadersOptions:Enabled"] = "true",
             ["CorsOptions:Enabled"] = "true",
             ["CorsOptions:AllowAllInDevelopment"] = "true",
             ["ApiVersionDeprecationOptions:Enabled"] = "false",
@@ -94,7 +122,7 @@ public sealed class ApiPipelineSmokeTests
             ["RateLimitingOptions:Policies:1:QueueProcessingOrder"] = "OldestFirst",
             ["ResponseCompressionOptions:Enabled"] = "false",
             ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeaders:Enabled"] = "false",
+            ["SecurityHeadersOptions:Enabled"] = "false",
             ["CorsOptions:Enabled"] = "false",
             ["ApiVersionDeprecationOptions:Enabled"] = "false"
         }, addExceptionHandler: true);

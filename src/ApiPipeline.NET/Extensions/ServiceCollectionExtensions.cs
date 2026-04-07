@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Net.Mime;
 using System.Threading.RateLimiting;
 using ApiPipeline.NET.Configuration;
 using ApiPipeline.NET.Cors;
@@ -24,6 +23,78 @@ namespace ApiPipeline.NET.Extensions;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers the full ApiPipeline.NET service set in one call.
+    /// Use <paramref name="configure"/> to disable components when composing a custom profile.
+    /// </summary>
+    public static IServiceCollection AddApiPipeline(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Action<ApiPipelineServiceRegistrationOptions>? configure = null)
+    {
+        var options = new ApiPipelineServiceRegistrationOptions();
+        configure?.Invoke(options);
+
+        services.AddCorrelationId();
+
+        if (options.AddExceptionHandler)
+        {
+            services.AddApiPipelineExceptionHandler();
+        }
+
+        if (options.AddRateLimiting)
+        {
+            services.AddRateLimiting(configuration);
+        }
+
+        if (options.AddResponseCompression)
+        {
+            services.AddResponseCompression(configuration);
+        }
+
+        if (options.AddResponseCaching)
+        {
+            services.AddResponseCaching(configuration);
+        }
+
+        if (options.AddSecurityHeaders)
+        {
+            services.AddSecurityHeaders(configuration);
+        }
+
+        if (options.AddCors)
+        {
+            services.AddCors(configuration);
+        }
+
+        if (options.AddApiVersionDeprecation)
+        {
+            services.AddApiVersionDeprecation(configuration);
+        }
+
+        if (options.AddRequestLimits)
+        {
+            services.AddRequestLimits(configuration);
+        }
+
+        if (options.AddForwardedHeaders)
+        {
+            services.AddForwardedHeaders(configuration);
+        }
+
+        if (options.AddRequestSizeTracking)
+        {
+            services.AddRequestSizeTracking();
+        }
+
+        if (options.AddOutputCaching)
+        {
+            services.AddOutputCaching(configuration);
+        }
+
+        return services;
+    }
+
     /// <summary>
     /// Registers <see cref="CorrelationIdMiddleware"/> in the DI container (required for the
     /// <see cref="Microsoft.AspNetCore.Http.IMiddleware"/> activation pattern) and enables the
@@ -141,6 +212,25 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers ASP.NET Core Output Caching services using configuration bound to
+    /// <see cref="OutputCachingSettings"/>. Output Caching replaces <c>ResponseCachingMiddleware</c>
+    /// with support for distributed stores, tag-based eviction, and per-endpoint policies.
+    /// </summary>
+    /// <param name="services">The service collection to add services to.</param>
+    /// <param name="configuration">The application configuration.</param>
+    /// <returns>The same <see cref="IServiceCollection"/> instance to enable fluent chaining.</returns>
+    public static IServiceCollection AddOutputCaching(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<OutputCachingSettings>()
+            .Bind(configuration.GetSection(ApiPipelineConfigurationKeys.OutputCaching))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOutputCache();
+        return services;
+    }
+
+    /// <summary>
     /// Registers <see cref="Middleware.RequestSizeMiddleware"/> for request body size telemetry.
     /// </summary>
     public static IServiceCollection AddRequestSizeTracking(this IServiceCollection services)
@@ -207,9 +297,12 @@ public static class ServiceCollectionExtensions
         {
             rateLimiterOptions.OnRejected = static async (context, cancellationToken) =>
             {
-                ApiPipelineTelemetry.RecordRateLimitRejected();
-
                 var httpContext = context.HttpContext;
+                var policyName = httpContext.Items["ApiPipeline.RateLimitPolicy"]?.ToString();
+                var partitionType = httpContext.User?.Identity?.IsAuthenticated == true ? "user"
+                    : httpContext.Connection.RemoteIpAddress is not null ? "ip"
+                    : "anonymous";
+                ApiPipelineTelemetry.RecordRateLimitRejected(policyName: policyName, partitionType: partitionType);
                 var response = httpContext.Response;
                 response.StatusCode = StatusCodes.Status429TooManyRequests;
                 response.Headers.CacheControl = "no-store";
@@ -235,8 +328,14 @@ public static class ServiceCollectionExtensions
 
             rateLimiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
             {
-                var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
-                var policy = ResolvePolicy(options, options.DefaultPolicy);
+                var resolver = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>();
+                var options = resolver.Current;
+                httpContext.Items["ApiPipeline.RateLimitPolicy"] = options.DefaultPolicy;
+                var policy = resolver.ResolvePolicy(options.DefaultPolicy);
+                if (policy is not null)
+                {
+                    httpContext.Items["ApiPipeline.RateLimitPolicyConfig"] = policy;
+                }
                 return policy is not null
                     ? GetPartitionOrFallback(httpContext, options, policy)
                     : RateLimitPartition.GetNoLimiter("no-policy");
@@ -256,8 +355,14 @@ public static class ServiceCollectionExtensions
 
                     rateLimiterOptions.AddPolicy(policyName, httpContext =>
                     {
-                        var options = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>().Current;
-                        var runtimePolicy = ResolvePolicy(options, policyName);
+                        httpContext.Items["ApiPipeline.RateLimitPolicy"] = policyName;
+                        var resolver = httpContext.RequestServices.GetRequiredService<RateLimiterPolicyResolver>();
+                        var options = resolver.Current;
+                        var runtimePolicy = resolver.ResolvePolicy(policyName);
+                        if (runtimePolicy is not null)
+                        {
+                            httpContext.Items["ApiPipeline.RateLimitPolicyConfig"] = runtimePolicy;
+                        }
                         return runtimePolicy is not null
                             ? GetPartitionOrFallback(httpContext, options, runtimePolicy)
                             : RateLimitPartition.GetNoLimiter("no-policy");
@@ -283,6 +388,15 @@ public static class ServiceCollectionExtensions
         if (!string.IsNullOrWhiteSpace(userId))
         {
             return CreateRateLimiterPartition($"user:{userId}", policy);
+        }
+
+        if (options.EnableApiKeyPartitioning)
+        {
+            var apiKey = context.Request.Headers[options.ApiKeyHeader].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                return CreateRateLimiterPartition($"apikey:{apiKey}", policy);
+            }
         }
 
         var ip = context.Connection.RemoteIpAddress?.ToString();
@@ -361,18 +475,6 @@ public static class ServiceCollectionExtensions
             _ => throw new NotSupportedException($"Unsupported rate limiter kind '{policy.Kind}'.")
         };
 
-    /// <summary>Resolves a rate limit policy by name; returns null if not found (caller should use no-op limiter).</summary>
-    private static RateLimitPolicy? ResolvePolicy(RateLimitingOptions options, string policyName)
-    {
-        if (options.Policies is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        return options.Policies.FirstOrDefault(p =>
-            string.Equals(p.Name, policyName, StringComparison.OrdinalIgnoreCase));
-    }
-
     internal static IServiceCollection ConfigureResponseCompression(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<ResponseCompressionSettings>()
@@ -380,18 +482,7 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddResponseCompression(options =>
-        {
-            options.EnableForHttps = true;
-            options.Providers.Clear();
-            options.Providers.Add<BrotliCompressionProvider>();
-            options.Providers.Add<GzipCompressionProvider>();
-
-            var baseMimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
-                [MediaTypeNames.Application.Json, "application/problem+json"]);
-            options.MimeTypes = baseMimeTypes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        });
-
+        services.AddResponseCompression();
         services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
         services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 
@@ -431,6 +522,12 @@ public static class ServiceCollectionExtensions
             .Validate(
                 c => !c.AllowCredentials || (c.AllowedOrigins is { Length: > 0 }),
                 "When AllowCredentials is true, AllowedOrigins must be configured (CORS does not allow wildcard origin with credentials).")
+            .Validate(
+                c => !c.Enabled || c.AllowAllInDevelopment || HasConfiguredCorsValues(c.AllowedMethods),
+                "When CORS is enabled, AllowedMethods must include at least one non-empty value. Use ['*'] explicitly if unrestricted methods are intended.")
+            .Validate(
+                c => !c.Enabled || c.AllowAllInDevelopment || HasConfiguredCorsValues(c.AllowedHeaders),
+                "When CORS is enabled, AllowedHeaders must include at least one non-empty value. Use ['*'] explicitly if unrestricted headers are intended.")
             .ValidateOnStart();
 
         // Register the live-config provider and the basic CORS services it depends on
@@ -503,4 +600,7 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    private static bool HasConfiguredCorsValues(string[]? values) =>
+        values is { Length: > 0 } && values.All(v => !string.IsNullOrWhiteSpace(v));
 }
