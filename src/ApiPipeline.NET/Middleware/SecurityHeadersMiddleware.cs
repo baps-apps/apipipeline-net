@@ -1,4 +1,3 @@
-using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using Microsoft.Extensions.Options;
 

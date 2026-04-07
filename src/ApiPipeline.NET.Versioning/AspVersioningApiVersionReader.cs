@@ -1,5 +1,3 @@
-using ApiPipeline.NET.Versioning;
-using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 
 namespace ApiPipeline.NET.Versioning.AspVersioning;

@@ -3,10 +3,7 @@ using System.Text.Json;
 using ApiPipeline.NET.Extensions;
 using ApiPipeline.NET.Validation;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace ApiPipeline.NET.Tests;
 

@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Net.Mime;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Options;

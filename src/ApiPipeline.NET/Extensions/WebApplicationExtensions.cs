@@ -3,9 +3,7 @@ using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
 using ApiPipeline.NET.Pipeline;
 using ApiPipeline.NET.Validation;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Extensions;

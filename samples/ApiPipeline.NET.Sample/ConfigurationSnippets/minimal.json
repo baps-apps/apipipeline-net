@@ -1,0 +1,10 @@
+{
+  "RateLimitingOptions": { "Enabled": false },
+  "ResponseCompressionOptions": { "Enabled": false },
+  "ResponseCachingOptions": { "Enabled": false },
+  "SecurityHeaders": { "Enabled": false },
+  "CorsOptions": { "Enabled": false },
+  "ApiVersionDeprecationOptions": { "Enabled": false },
+  "RequestLimitsOptions": { "Enabled": false },
+  "ForwardedHeadersOptions": { "Enabled": false }
+}

@@ -40,7 +40,7 @@ This package is primarily a **standardization + maintenance win** for ASP.NET Co
 - **Faster onboarding**: new APIs get a hardened pipeline by:
   - Adding the package
   - Adding configuration sections
-  - Calling the per-feature `Add`*/`Use`* extensions and `ConfigureKestrelRequestLimits`.
+  - Calling the per-feature `Add`*/`Use`* extensions (Kestrel limits apply automatically when you call `AddRequestLimits`).
 - **Safer operations**: many behaviors are feature-flagged in config (e.g. disable rate limiting or security headers) without code changes.
 - **Shared Kestrel limits**: request/body/header limits come from `RequestLimitsOptions` so they are consistent across services.
 
@@ -77,8 +77,7 @@ ApiPipeline.NET provides:
   - **Middleware**: `ApiVersionDeprecationMiddleware` + `UseApiVersionDeprecation()` add `Deprecation`, `Sunset`, and `Link` headers for matching API versions on routes starting with the configured `PathPrefix`.
 - **Kestrel and form request limits**
   - **Options**: `RequestLimitsOptions` – maximum body size, total header size, header count, and maximum form value count.
-  - **Registration**: `AddRequestLimits(builder.Configuration)` binds limits and configures ASP.NET Core `FormOptions` to enforce the same body/count limits for form and multipart requests.
-  - **Kestrel**: `ConfigureKestrelRequestLimits()` (on `WebApplicationBuilder`) maps the same options into `KestrelServerLimits` so all HTTP traffic respects the configured ceilings.
+  - **Registration**: `AddRequestLimits(builder.Configuration)` binds limits, registers `IConfigureOptions<KestrelServerOptions>` so Kestrel applies the same ceilings to all HTTP traffic, and configures ASP.NET Core `FormOptions` for form and multipart requests.
 
 ## Installation
 
@@ -320,27 +319,27 @@ builder.Services
     .AddForwardedHeaders(builder.Configuration)
     .AddApiPipelineExceptionHandler();
 
-builder.ConfigureKestrelRequestLimits();
-
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
 var app = builder.Build();
 
-app.UseApiPipelineForwardedHeaders();
-app.UseCorrelationId();
-app.UseApiPipelineExceptionHandler();
-app.UseHttpsRedirection();
-app.UseRateLimiting();
-app.UseResponseCompression();
-app.UseResponseCaching();
-app.UseSecurityHeaders();
-app.UseApiVersionDeprecation();
-app.UseCors();
+app.UseApiPipeline(pipeline => pipeline
+    .WithForwardedHeaders()
+    .WithCorrelationId()
+    .WithExceptionHandler()
+    .WithHttpsRedirection()
+    .WithCors()
+    .WithAuthentication()
+    .WithAuthorization()
+    .WithRateLimiting()
+    .WithResponseCompression()
+    .WithResponseCaching()
+    .WithSecurityHeaders()
+    .WithVersionDeprecation()
+);
 
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
@@ -348,19 +347,20 @@ app.Run();
 
 ### Pipeline order
 
-The recommended pipeline order is:
+Prefer `UseApiPipeline` so middleware runs in this fixed order (matching `ApiPipelineBuilder`):
 
 1. `UseApiPipelineForwardedHeaders` – resolve real client IP from proxy headers
 2. `UseCorrelationId` – assign/validate correlation ID
 3. `UseApiPipelineExceptionHandler` – catch unhandled exceptions as ProblemDetails
 4. `UseHttpsRedirection` – redirect HTTP to HTTPS (when TLS is not terminated at the ingress)
-5. `UseRateLimiting` – enforce rate limits
-6. `UseResponseCompression` – compress eligible responses
-7. `UseResponseCaching` – serve cached responses
-8. `UseSecurityHeaders` – apply security headers (HSTS, X-Content-Type-Options, Referrer-Policy)
-9. `UseApiVersionDeprecation` – add deprecation headers
-10. `UseCors` – enforce CORS policies
-11. `UseAuthentication` / `UseAuthorization` – authenticate and authorize requests
+5. `UseCors` – enforce CORS policies (before auth so preflight is not rate-limited as authenticated traffic)
+6. `UseAuthentication` / `UseAuthorization` – authenticate and authorize requests
+7. `UseRequestValidation` – optional; only when you register `AddRequestValidation<T>()`
+8. `UseRateLimiting` – enforce rate limits
+9. `UseResponseCompression` – compress eligible responses
+10. `UseResponseCaching` – serve cached responses (after auth to avoid caching unauthorized responses)
+11. `UseSecurityHeaders` – apply security headers (HSTS, X-Content-Type-Options, Referrer-Policy)
+12. `UseApiVersionDeprecation` – add deprecation headers
 
 Your own routing and endpoints are added **after** this pipeline.
 
@@ -374,18 +374,7 @@ Kestrel limits are driven by `RequestLimitsOptions`:
 - `MaxRequestHeadersTotalSize`
 - `MaxRequestHeaderCount`
 
-ApiPipeline.NET provides an extension on `WebApplicationBuilder`:
-
-```csharp
-using ApiPipeline.NET.Extensions;
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Configuration.AddJsonFile("appsettings.json", optional: false);
-
-// Configure all Kestrel limits from RequestLimitsOptions
-builder.ConfigureKestrelRequestLimits();
-```
+When you call `AddRequestLimits(builder.Configuration)`, ApiPipeline.NET registers validated options and applies them to Kestrel via `IConfigureOptions<KestrelServerOptions>` (no separate `WebApplicationBuilder` step).
 
 Form request limits (`FormOptions`) are also configured from `RequestLimitsOptions`, so multipart and form posts respect the same body/count limits as Kestrel.
 

@@ -9,11 +9,15 @@
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="ConfigurationSnippets\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ApiPipeline.NET\ApiPipeline.NET.csproj" />
     <ProjectReference Include="..\..\src\ApiPipeline.NET.OpenTelemetry\ApiPipeline.NET.OpenTelemetry.csproj" />
     <ProjectReference Include="..\..\src\ApiPipeline.NET.Versioning\ApiPipeline.NET.Versioning.csproj" />
+    <ProjectReference Include="..\..\src\ApiPipeline.NET.OutputCaching\ApiPipeline.NET.OutputCaching.csproj" />
     <PackageReference Include="CodeStyle.NET" />
   </ItemGroup>
 </Project>

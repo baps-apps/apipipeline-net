@@ -25,7 +25,7 @@ The implementation demonstrates strong engineering fundamentals — correct low-
 | Security Headers | `Middleware/SecurityHeadersMiddleware.cs` | Emit HSTS, X-Content-Type-Options, Referrer-Policy |
 | API Version Deprecation | `Middleware/ApiVersionDeprecationMiddleware.cs` | Emit Deprecation/Sunset headers via Asp.Versioning |
 | Service Registration | `Extensions/ServiceCollectionExtensions.cs` | All `Add*` DI registration and options configuration |
-| App Registration | `Extensions/WebApplicationBuilderExtensions.cs` | Kestrel-level request limits |
+| App registration (Kestrel limits) | `Extensions/ServiceCollectionExtensions.cs` (`ConfigureRequestLimits`) | `IConfigureOptions<KestrelServerOptions>` from `RequestLimitsOptions` |
 | Middleware Registration | `Extensions/WebApplicationExtensions.cs` | All `Use*` middleware activation |
 | Options | `Options/*.cs` | Strongly-typed, validated options for each feature |
 | Configuration Keys | `Configuration/ApiPipelineConfigurationKeys.cs` | `appsettings.json` section key constants |

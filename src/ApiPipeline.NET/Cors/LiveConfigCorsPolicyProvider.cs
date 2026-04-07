@@ -1,8 +1,6 @@
 using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using Microsoft.AspNetCore.Cors.Infrastructure;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Cors;

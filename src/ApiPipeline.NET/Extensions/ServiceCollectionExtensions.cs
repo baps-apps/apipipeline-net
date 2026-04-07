@@ -10,7 +10,6 @@ using ApiPipeline.NET.Options;
 using ApiPipeline.NET.RateLimiting;
 using ApiPipeline.NET.Validation;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -472,7 +471,7 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Register Kestrel configuration via validated options (replaces ConfigureKestrelRequestLimits)
+        // Register Kestrel limits from validated RequestLimitsOptions
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IConfigureOptions<KestrelServerOptions>, ConfigureKestrelOptions>());
 

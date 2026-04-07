@@ -1,39 +1,57 @@
 using ApiPipeline.NET.Extensions;
 using ApiPipeline.NET.OpenTelemetry;
+using ApiPipeline.NET.Sample;
 using ApiPipeline.NET.Versioning;
 using Asp.Versioning;
 
+// =============================================================================
+// Options pattern
+// -----------------------------------------------------------------------------
+// Each Add*(IConfiguration) call binds a named JSON section. Section names are the
+// same as in ApiPipeline.NET.Configuration.ApiPipelineConfigurationKeys (see README).
+// Combine appsettings.json + appsettings.{Environment}.json + environment variables.
+//
+// ConfigurationSnippets/*.json in this project are copy-paste examples for common
+// scenarios (minimal, ingress, anonymous IP fallback, output-cache migration).
+// =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services
-    .AddCorrelationId()                          // Generates/validates X-Correlation-Id on every request and response
-    .AddRateLimiting(builder.Configuration)      // Configures fixed-window rate limiting to protect against traffic bursts
-    .AddResponseCompression(builder.Configuration) // Enables Brotli/gzip compression for eligible responses
-    .AddResponseCaching(builder.Configuration)   // Enables server-side response caching for GET/HEAD responses
-    .AddSecurityHeaders(builder.Configuration)   // Registers Strict-Transport-Security, X-Content-Type-Options, and Referrer-Policy headers
-    .AddCors(builder.Configuration)              // Registers CORS policies (AllowAll in development, configured in production)
-    .AddApiPipelineVersioning(builder.Configuration) // Adds Deprecation/Sunset headers for deprecated API versions (via Asp.Versioning.Mvc satellite)
-    .AddRequestLimits(builder.Configuration)     // Sets maximum request body size limits
-    .AddForwardedHeaders(builder.Configuration)  // Configures trusted proxies for X-Forwarded-For/Proto/Host processing
-    .AddApiPipelineExceptionHandler();           // Registers RFC 7807 Problem Details error responses with correlation ID
+    .AddCorrelationId()
+    .AddRateLimiting(builder.Configuration)
+    .AddResponseCompression(builder.Configuration)
+    .AddResponseCaching(builder.Configuration)
+    .AddSecurityHeaders(builder.Configuration)
+    .AddCors(builder.Configuration)
+    .AddApiPipelineVersioning(builder.Configuration)
+    .AddRequestLimits(builder.Configuration)
+    .AddForwardedHeaders(builder.Configuration)
+    .AddRequestSizeTracking()
+    .AddRequestValidation<SampleRequestValidationFilter>()
+    .AddApiPipelineExceptionHandler();
 
-// Wires up OpenTelemetry tracing, metrics, and logging exporters
 builder.AddApiPipelineObservability();
 
-builder.Services.AddAuthentication();            // Registers the ASP.NET Core authentication services
-builder.Services.AddAuthorization();             // Registers the ASP.NET Core authorization services
-builder.Services.AddControllers();               // Registers MVC controller services
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
+builder.Services.AddControllers();
 builder.Services
     .AddApiVersioning(options =>
     {
-        options.DefaultApiVersion = new ApiVersion(1, 0); // Fall back to v1.0 when no version is specified
+        options.DefaultApiVersion = new ApiVersion(1, 0);
         options.AssumeDefaultVersionWhenUnspecified = true;
-        options.ReportApiVersions = true;                 // Include api-supported-versions header in responses
-        options.ApiVersionReader = new UrlSegmentApiVersionReader(); // Read version from URL path, e.g. /api/v1/orders
+        options.ReportApiVersions = true;
+        options.ApiVersionReader = new UrlSegmentApiVersionReader();
     });
 
 var app = builder.Build();
 
+// Phase-enforced pipeline (order is fixed regardless of With* call order in the lambda).
+// Register WithRequestValidation only when AddRequestValidation<T> was called above.
+//
+// Request body size histogram: AddRequestSizeTracking registers the middleware type; for ideal
+// ordering (immediately after forwarded headers), build the early middleware manually — see
+// README "Scenario: Request body metrics".
 app.UseApiPipeline(pipeline => pipeline
     .WithForwardedHeaders()
     .WithCorrelationId()
@@ -42,12 +60,12 @@ app.UseApiPipeline(pipeline => pipeline
     .WithCors()
     .WithAuthentication()
     .WithAuthorization()
+    .WithRequestValidation()
     .WithRateLimiting()
     .WithResponseCompression()
     .WithResponseCaching()
     .WithSecurityHeaders()
-    .WithVersionDeprecation()
-);
+    .WithVersionDeprecation());
 
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
 

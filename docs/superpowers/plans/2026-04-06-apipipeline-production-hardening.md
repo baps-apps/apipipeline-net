@@ -1,6 +1,6 @@
 # ApiPipeline.NET Production Hardening & Platform Evolution — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax; all steps below are marked complete for this repository revision.
 
 **Goal:** Harden ApiPipeline.NET against all 27 issues identified in the Principal Architect review — fixing security defaults, correctness gaps, performance allocations, observability blind spots, and architectural coupling — while adding enterprise-grade features (phase-enforced pipeline builder, validation hook, satellite packages).
 
@@ -75,7 +75,7 @@
 - Modify: `src/ApiPipeline.NET/Options/RequestLimitsOptions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/OptionsValidationTests.cs`
 
-- [ ] **Step 1.1: Write failing tests for zero-value limits**
+- [x] **Step 1.1: Write failing tests for zero-value limits**
 
 Add to `tests/ApiPipeline.NET.Tests/OptionsValidationTests.cs`:
 
@@ -135,7 +135,7 @@ public async Task RequestLimits_MaxRequestBodySize_Positive_Passes_Validation()
 }
 ```
 
-- [ ] **Step 1.2: Run tests to confirm they fail**
+- [x] **Step 1.2: Run tests to confirm they fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsValidationTests.RequestLimits" -v
@@ -143,7 +143,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsVal
 
 Expected: FAIL — `RequestLimits_MaxRequestBodySize_Zero_Fails_Validation` passes but should throw.
 
-- [ ] **Step 1.3: Fix `RequestLimitsOptions.cs` — change Range minimum from 0 to 1**
+- [x] **Step 1.3: Fix `RequestLimitsOptions.cs` — change Range minimum from 0 to 1**
 
 Replace the entire file content:
 
@@ -180,7 +180,7 @@ public sealed class RequestLimitsOptions
 }
 ```
 
-- [ ] **Step 1.4: Run tests to confirm they pass**
+- [x] **Step 1.4: Run tests to confirm they pass**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsValidationTests.RequestLimits" -v
@@ -188,7 +188,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsVal
 
 Expected: All 3 tests PASS.
 
-- [ ] **Step 1.5: Run full suite to check for regressions**
+- [x] **Step 1.5: Run full suite to check for regressions**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -196,7 +196,7 @@ dotnet test tests/ApiPipeline.NET.Tests/
 
 Expected: All existing tests pass.
 
-- [ ] **Step 1.6: Commit**
+- [x] **Step 1.6: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Options/RequestLimitsOptions.cs tests/ApiPipeline.NET.Tests/OptionsValidationTests.cs
@@ -212,7 +212,7 @@ git commit -m "fix: reject zero-value request limits (C-5) — zero body size si
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/ResponseCompressionTests.cs`
 
-- [ ] **Step 2.1: Write failing test — default should be false**
+- [x] **Step 2.1: Write failing test — default should be false**
 
 Add to `tests/ApiPipeline.NET.Tests/ResponseCompressionTests.cs`:
 
@@ -230,7 +230,7 @@ public void ResponseCompressionSettings_EnableForHttps_DefaultIs_False()
 }
 ```
 
-- [ ] **Step 2.2: Run to confirm fail**
+- [x] **Step 2.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ResponseCompressionTests.ResponseCompressionSettings_EnableForHttps_DefaultIs_False" -v
@@ -238,7 +238,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ResponseCo
 
 Expected: FAIL.
 
-- [ ] **Step 2.3: Change default in `ResponseCompressionSettings.cs`**
+- [x] **Step 2.3: Change default in `ResponseCompressionSettings.cs`**
 
 In `src/ApiPipeline.NET/Options/ResponseCompressionSettings.cs`, change line:
 
@@ -256,7 +256,7 @@ Also update the XML doc comment on `EnableForHttps` — add a sentence:
 /// are confirmed to never mix attacker-controlled input with secrets in the same response body.</para>
 ```
 
-- [ ] **Step 2.4: Add startup warning when `EnableForHttps = true` in `ServiceCollectionExtensions.cs`**
+- [x] **Step 2.4: Add startup warning when `EnableForHttps = true` in `ServiceCollectionExtensions.cs`**
 
 In `ConfigureResponseCompression`, after binding the options, add a startup warning. Locate the line:
 ```csharp
@@ -301,7 +301,7 @@ public static WebApplication UseResponseCompression(this WebApplication app)
     // ... rest of method unchanged
 ```
 
-- [ ] **Step 2.5: Run tests**
+- [x] **Step 2.5: Run tests**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ResponseCompressionTests" -v
@@ -309,7 +309,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ResponseCo
 
 Expected: New test passes. Check that existing compression tests that relied on `EnableForHttps = true` default don't break (they use `ResponseCompressionOptions:Enabled = false` in `MinimalConfig` so compression is off anyway).
 
-- [ ] **Step 2.6: Commit**
+- [x] **Step 2.6: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Options/ResponseCompressionSettings.cs src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs tests/ApiPipeline.NET.Tests/ResponseCompressionTests.cs
@@ -325,7 +325,7 @@ git commit -m "fix: default EnableForHttps to false — BREACH/CRIME risk must b
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/CorsTests.cs`
 
-- [ ] **Step 3.1: Write failing tests**
+- [x] **Step 3.1: Write failing tests**
 
 Add to `tests/ApiPipeline.NET.Tests/CorsTests.cs`:
 
@@ -343,7 +343,7 @@ public void CorsSettings_AllowAllInDevelopment_DefaultIs_False()
 }
 ```
 
-- [ ] **Step 3.2: Run to confirm fail**
+- [x] **Step 3.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorsTests.CorsSettings_AllowAllInDevelopment_DefaultIs_False" -v
@@ -351,7 +351,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorsTests.
 
 Expected: FAIL.
 
-- [ ] **Step 3.3: Change default in `CorsSettings.cs`**
+- [x] **Step 3.3: Change default in `CorsSettings.cs`**
 
 ```csharp
 // Before:
@@ -363,7 +363,7 @@ public bool AllowAllInDevelopment { get; set; } = false;
 
 Update XML doc to note: `Defaults to <c>false</c>. Set explicitly to <c>true</c> in development appsettings only.`
 
-- [ ] **Step 3.4: Add runtime warning when AllowAll policy activates in `WebApplicationExtensions.cs`**
+- [x] **Step 3.4: Add runtime warning when AllowAll policy activates in `WebApplicationExtensions.cs`**
 
 In `UseCors`, add a log warning when the AllowAll policy path is taken. The method becomes:
 
@@ -397,7 +397,7 @@ public static WebApplication UseCors(this WebApplication app)
 }
 ```
 
-- [ ] **Step 3.5: Run tests**
+- [x] **Step 3.5: Run tests**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorsTests" -v
@@ -405,7 +405,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorsTests"
 
 Expected: New test passes. Check existing CORS tests that use `AllowAllInDevelopment` — the `TestAppBuilder.MinimalConfig` sets `CorsOptions:Enabled = false` so CORS is off; any CORS tests that enabled it explicitly need to also set `AllowAllInDevelopment: true` if they relied on the default.
 
-- [ ] **Step 3.6: Commit**
+- [x] **Step 3.6: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Options/CorsSettings.cs src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs tests/ApiPipeline.NET.Tests/CorsTests.cs
@@ -420,7 +420,7 @@ git commit -m "fix: default AllowAllInDevelopment to false — prevent accidenta
 - Modify: `src/ApiPipeline.NET/Options/ForwardedHeadersSettings.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/OptionsValidationTests.cs`
 
-- [ ] **Step 4.1: Write failing test**
+- [x] **Step 4.1: Write failing test**
 
 Add to `OptionsValidationTests.cs`:
 
@@ -446,7 +446,7 @@ public async Task ForwardedHeaders_ForwardLimit_15_Passes_Validation()
 }
 ```
 
-- [ ] **Step 4.2: Run to confirm fail**
+- [x] **Step 4.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsValidationTests.ForwardedHeaders_ForwardLimit_15_Passes_Validation" -v
@@ -454,7 +454,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsVal
 
 Expected: FAIL — currently `[Range(1, 10)]` rejects 15.
 
-- [ ] **Step 4.3: Update `ForwardedHeadersSettings.cs`**
+- [x] **Step 4.3: Update `ForwardedHeadersSettings.cs`**
 
 ```csharp
 // Before:
@@ -473,7 +473,7 @@ public int ForwardLimit { get; set; } = 1;
 public int ForwardLimit { get; set; } = 1;
 ```
 
-- [ ] **Step 4.4: Run tests and commit**
+- [x] **Step 4.4: Run tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~OptionsValidationTests.ForwardedHeaders" -v
@@ -492,7 +492,7 @@ git commit -m "fix: raise ForwardLimit validation cap to 20 for complex proxy to
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/ExceptionHandlerTests.cs`
 
-- [ ] **Step 5.1: Write failing test**
+- [x] **Step 5.1: Write failing test**
 
 Add to `ExceptionHandlerTests.cs`:
 
@@ -520,7 +520,7 @@ public async Task UseApiPipelineExceptionHandler_Without_AddService_Throws()
 }
 ```
 
-- [ ] **Step 5.2: Run to confirm fail**
+- [x] **Step 5.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ExceptionHandlerTests.UseApiPipelineExceptionHandler_Without_AddService_Throws" -v
@@ -528,7 +528,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ExceptionH
 
 Expected: FAIL — currently no guard exists.
 
-- [ ] **Step 5.3: Add guard in `WebApplicationExtensions.cs`**
+- [x] **Step 5.3: Add guard in `WebApplicationExtensions.cs`**
 
 In `UseApiPipelineExceptionHandler`, add at the top of the method:
 
@@ -548,7 +548,7 @@ public static WebApplication UseApiPipelineExceptionHandler(this WebApplication 
 }
 ```
 
-- [ ] **Step 5.4: Run tests and confirm**
+- [x] **Step 5.4: Run tests and confirm**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ExceptionHandlerTests" -v
@@ -556,7 +556,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ExceptionH
 
 Expected: New test passes. All existing exception handler tests still pass (`addExceptionHandler: true` cases).
 
-- [ ] **Step 5.5: Commit**
+- [x] **Step 5.5: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs tests/ApiPipeline.NET.Tests/ExceptionHandlerTests.cs
@@ -572,7 +572,7 @@ git commit -m "fix: guard UseApiPipelineExceptionHandler against missing DI regi
 - Modify: `src/ApiPipeline.NET/Middleware/ApiVersionDeprecationMiddleware.cs`
 - Create: `tests/ApiPipeline.NET.Tests/ApiVersionDeprecationMiddlewareTests.cs`
 
-- [ ] **Step 6.1: Create new test file with failing tests**
+- [x] **Step 6.1: Create new test file with failing tests**
 
 Create `tests/ApiPipeline.NET.Tests/ApiVersionDeprecationMiddlewareTests.cs`:
 
@@ -696,7 +696,7 @@ public sealed class ApiVersionDeprecationMiddlewareTests
 }
 ```
 
-- [ ] **Step 6.2: Run tests (some may fail or be skipped due to missing Asp.Versioning setup)**
+- [x] **Step 6.2: Run tests (some may fail or be skipped due to missing Asp.Versioning setup)**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ApiVersionDeprecationMiddlewareTests" -v
@@ -704,7 +704,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~ApiVersion
 
 Note: Tests that require `Asp.Versioning.ApiVersion` may need `WithApiVersionSet` setup. If the sample/tests already have `Asp.Versioning.Mvc` as a test project reference, they will work. Adjust as needed based on actual test run output.
 
-- [ ] **Step 6.3: Add `[Url]` annotation to `SunsetLink` in `ApiVersionDeprecationOptions.cs`**
+- [x] **Step 6.3: Add `[Url]` annotation to `SunsetLink` in `ApiVersionDeprecationOptions.cs`**
 
 ```csharp
 // Before:
@@ -720,7 +720,7 @@ public string? SunsetLink { get; set; }
 public string? SunsetLink { get; set; }
 ```
 
-- [ ] **Step 6.4: Add runtime URL validation guard in `ApiVersionDeprecationMiddleware.cs`**
+- [x] **Step 6.4: Add runtime URL validation guard in `ApiVersionDeprecationMiddleware.cs`**
 
 Find the SunsetLink header-setting block and wrap it with a validation guard:
 
@@ -747,7 +747,7 @@ if (!string.IsNullOrWhiteSpace(deprecated.SunsetLink))
 }
 ```
 
-- [ ] **Step 6.5: Run all tests and commit**
+- [x] **Step 6.5: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -772,7 +772,7 @@ git commit -m "fix: validate SunsetLink as absolute URI before emitting Link hea
 - Modify: `src/ApiPipeline.NET/Middleware/CorrelationIdMiddleware.cs`
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 
-- [ ] **Step 7.1: Write failing test — AddCorrelationId must register the middleware in DI**
+- [x] **Step 7.1: Write failing test — AddCorrelationId must register the middleware in DI**
 
 Add to `CorrelationIdMiddlewareTests.cs`:
 
@@ -793,7 +793,7 @@ public async Task AddCorrelationId_Registers_Middleware_In_DI()
 }
 ```
 
-- [ ] **Step 7.2: Run to confirm fail**
+- [x] **Step 7.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorrelationIdMiddlewareTests.AddCorrelationId_Registers_Middleware_In_DI" -v
@@ -801,7 +801,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~Correlatio
 
 Expected: FAIL — `GetService<CorrelationIdMiddleware>()` returns null.
 
-- [ ] **Step 7.3: Convert `CorrelationIdMiddleware` to `IMiddleware`**
+- [x] **Step 7.3: Convert `CorrelationIdMiddleware` to `IMiddleware`**
 
 Replace the entire `CorrelationIdMiddleware.cs`:
 
@@ -893,7 +893,7 @@ public sealed partial class CorrelationIdMiddleware : IMiddleware
 
 Note: The `using (_logger.BeginScope(new[] {...}))` also fixes the per-request `Dictionary` allocation (S-2 — combining that fix here).
 
-- [ ] **Step 7.4: Update `AddCorrelationId()` in `ServiceCollectionExtensions.cs`**
+- [x] **Step 7.4: Update `AddCorrelationId()` in `ServiceCollectionExtensions.cs`**
 
 ```csharp
 /// <summary>
@@ -908,7 +908,7 @@ public static IServiceCollection AddCorrelationId(this IServiceCollection servic
 }
 ```
 
-- [ ] **Step 7.5: Run all tests**
+- [x] **Step 7.5: Run all tests**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -916,7 +916,7 @@ dotnet test tests/ApiPipeline.NET.Tests/
 
 Expected: All tests pass, including the new `AddCorrelationId_Registers_Middleware_In_DI` test. Existing correlation ID middleware tests continue to work because `TestAppBuilder.CreateAppAsync` already calls `AddCorrelationId()` (line 30 of `TestAppBuilder.cs`).
 
-- [ ] **Step 7.6: Commit**
+- [x] **Step 7.6: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Middleware/CorrelationIdMiddleware.cs \
@@ -934,7 +934,7 @@ git commit -m "fix: convert CorrelationIdMiddleware to IMiddleware; AddCorrelati
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/RateLimitingTests.cs`
 
-- [ ] **Step 8.1: Write failing tests**
+- [x] **Step 8.1: Write failing tests**
 
 Add to `RateLimitingTests.cs`:
 
@@ -952,7 +952,7 @@ public void RateLimitingOptions_AnonymousFallback_DefaultIs_Reject()
 }
 ```
 
-- [ ] **Step 8.2: Run to confirm fail**
+- [x] **Step 8.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RateLimitingTests.RateLimitingOptions_AnonymousFallback_DefaultIs_Reject" -v
@@ -960,7 +960,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RateLimiti
 
 Expected: FAIL — `AnonymousFallbackBehavior` doesn't exist yet.
 
-- [ ] **Step 8.3: Add `AnonymousFallbackBehavior` enum and property to `RateLimitingOptions.cs`**
+- [x] **Step 8.3: Add `AnonymousFallbackBehavior` enum and property to `RateLimitingOptions.cs`**
 
 Add the enum and property. In `RateLimitingOptions.cs`, add before the class declaration:
 
@@ -1001,7 +1001,7 @@ In `RateLimitingOptions` class, add:
 public AnonymousFallbackBehavior AnonymousFallback { get; set; } = AnonymousFallbackBehavior.Reject;
 ```
 
-- [ ] **Step 8.4: Update `GetPartitionKey` in `ServiceCollectionExtensions.cs`**
+- [x] **Step 8.4: Update `GetPartitionKey` in `ServiceCollectionExtensions.cs`**
 
 Replace the existing `GetPartitionKey` private method:
 
@@ -1082,7 +1082,7 @@ rateLimiterOptions.AddPolicy(policyName, httpContext =>
 
 Remove the old `GetPartitionKey(HttpContext)` and `CreateRateLimiterPartition(HttpContext, RateLimitPolicy)` overloads (the one taking `HttpContext` directly) — keep only `CreateRateLimiterPartition(string, RateLimitPolicy)`.
 
-- [ ] **Step 8.5: Run all tests and commit**
+- [x] **Step 8.5: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1102,7 +1102,7 @@ git commit -m "fix: add AnonymousFallbackBehavior — default Reject prevents sh
 **Files:**
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 
-- [ ] **Step 9.1: Add startup log to `UseRateLimiting()`**
+- [x] **Step 9.1: Add startup log to `UseRateLimiting()`**
 
 In `WebApplicationExtensions.cs`, update `UseRateLimiting`:
 
@@ -1130,13 +1130,13 @@ public static WebApplication UseRateLimiting(this WebApplication app)
 }
 ```
 
-- [ ] **Step 9.2: Run full test suite (no test needed — this is observational)**
+- [x] **Step 9.2: Run full test suite (no test needed — this is observational)**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
 ```
 
-- [ ] **Step 9.3: Commit**
+- [x] **Step 9.3: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs
@@ -1153,7 +1153,7 @@ git commit -m "feat: log named rate limit policies at startup with note about st
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationBuilderExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/TestAppBuilder.cs`
 
-- [ ] **Step 10.1: Create `ConfigureKestrelOptions.cs`**
+- [x] **Step 10.1: Create `ConfigureKestrelOptions.cs`**
 
 Create `src/ApiPipeline.NET/Options/ConfigureKestrelOptions.cs`:
 
@@ -1201,7 +1201,7 @@ internal sealed class ConfigureKestrelOptions : IConfigureOptions<KestrelServerO
 }
 ```
 
-- [ ] **Step 10.2: Register `ConfigureKestrelOptions` inside `ConfigureRequestLimits` in `ServiceCollectionExtensions.cs`**
+- [x] **Step 10.2: Register `ConfigureKestrelOptions` inside `ConfigureRequestLimits` in `ServiceCollectionExtensions.cs`**
 
 Add to `ConfigureRequestLimits`:
 
@@ -1221,7 +1221,7 @@ internal static IServiceCollection ConfigureRequestLimits(this IServiceCollectio
 }
 ```
 
-- [ ] **Step 10.3: Deprecate `ConfigureKestrelRequestLimits` in `WebApplicationBuilderExtensions.cs`**
+- [x] **Step 10.3: Deprecate `ConfigureKestrelRequestLimits` in `WebApplicationBuilderExtensions.cs`**
 
 ```csharp
 /// <summary>
@@ -1242,7 +1242,7 @@ public static WebApplicationBuilder ConfigureKestrelRequestLimits(this WebApplic
 }
 ```
 
-- [ ] **Step 10.4: Remove `ConfigureKestrelRequestLimits` call from `TestAppBuilder.cs`**
+- [x] **Step 10.4: Remove `ConfigureKestrelRequestLimits` call from `TestAppBuilder.cs`**
 
 In `TestAppBuilder.cs`, remove line 45:
 
@@ -1251,7 +1251,7 @@ In `TestAppBuilder.cs`, remove line 45:
 builder.ConfigureKestrelRequestLimits();
 ```
 
-- [ ] **Step 10.5: Run all tests and commit**
+- [x] **Step 10.5: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1274,7 +1274,7 @@ git commit -m "fix: move Kestrel limits to IConfigureOptions — ensures Validat
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/CorsTests.cs`
 
-- [ ] **Step 11.1: Write failing test — CORS policy must reflect config changes**
+- [x] **Step 11.1: Write failing test — CORS policy must reflect config changes**
 
 Add to `CorsTests.cs`:
 
@@ -1328,13 +1328,13 @@ public async Task Cors_Rejects_Unknown_Origin()
 }
 ```
 
-- [ ] **Step 11.2: Run to confirm current behaviour (these may already pass — baseline)**
+- [x] **Step 11.2: Run to confirm current behaviour (these may already pass — baseline)**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~CorsTests.Cors_Allows_Configured_Origin|FullyQualifiedName~CorsTests.Cors_Rejects_Unknown_Origin" -v
 ```
 
-- [ ] **Step 11.3: Create `LiveConfigCorsPolicyProvider.cs`**
+- [x] **Step 11.3: Create `LiveConfigCorsPolicyProvider.cs`**
 
 Create `src/ApiPipeline.NET/Cors/LiveConfigCorsPolicyProvider.cs`:
 
@@ -1416,7 +1416,7 @@ internal sealed class LiveConfigCorsPolicyProvider : ICorsPolicyProvider
 }
 ```
 
-- [ ] **Step 11.4: Register `LiveConfigCorsPolicyProvider` in `ConfigureCors` in `ServiceCollectionExtensions.cs`**
+- [x] **Step 11.4: Register `LiveConfigCorsPolicyProvider` in `ConfigureCors` in `ServiceCollectionExtensions.cs`**
 
 Replace the static policy registration at the end of `ConfigureCors`:
 
@@ -1439,7 +1439,7 @@ internal static IServiceCollection ConfigureCors(this IServiceCollection service
 }
 ```
 
-- [ ] **Step 11.5: Simplify `UseCors` in `WebApplicationExtensions.cs` — policy name no longer needed**
+- [x] **Step 11.5: Simplify `UseCors` in `WebApplicationExtensions.cs` — policy name no longer needed**
 
 The `ICorsPolicyProvider` now handles policy selection per-request. `UseCors()` without a name is sufficient:
 
@@ -1468,7 +1468,7 @@ public static WebApplication UseCors(this WebApplication app)
 }
 ```
 
-- [ ] **Step 11.6: Run all tests and commit**
+- [x] **Step 11.6: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1496,7 +1496,7 @@ git commit -m "feat: implement LiveConfigCorsPolicyProvider — CORS allowed ori
 - Create: `src/ApiPipeline.NET/Options/ConfigureResponseCachingOptions.cs`
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 
-- [ ] **Step 12.1: Create `RateLimiting/RateLimiterPolicyResolver.cs`**
+- [x] **Step 12.1: Create `RateLimiting/RateLimiterPolicyResolver.cs`**
 
 Create `src/ApiPipeline.NET/RateLimiting/RateLimiterPolicyResolver.cs`:
 
@@ -1521,7 +1521,7 @@ internal sealed class RateLimiterPolicyResolver
 }
 ```
 
-- [ ] **Step 12.2: Create `Options/ConfigureResponseCompressionOptions.cs`**
+- [x] **Step 12.2: Create `Options/ConfigureResponseCompressionOptions.cs`**
 
 Create `src/ApiPipeline.NET/Options/ConfigureResponseCompressionOptions.cs`:
 
@@ -1572,7 +1572,7 @@ internal sealed class ConfigureResponseCompressionOptions : IConfigureOptions<Re
 }
 ```
 
-- [ ] **Step 12.3: Create `Options/ConfigureResponseCachingOptions.cs`**
+- [x] **Step 12.3: Create `Options/ConfigureResponseCachingOptions.cs`**
 
 Create `src/ApiPipeline.NET/Options/ConfigureResponseCachingOptions.cs`:
 
@@ -1602,7 +1602,7 @@ internal sealed class ConfigureResponseCachingOptions : IConfigureOptions<Respon
 }
 ```
 
-- [ ] **Step 12.4: Remove the three embedded classes from `ServiceCollectionExtensions.cs`**
+- [x] **Step 12.4: Remove the three embedded classes from `ServiceCollectionExtensions.cs`**
 
 Delete from `ServiceCollectionExtensions.cs`:
 - The `RateLimiterPolicyResolver` class (lines ~499–507)
@@ -1616,7 +1616,7 @@ using ApiPipeline.NET.RateLimiting;
 
 Also update `services.AddSingleton<RateLimiterPolicyResolver>()` — the type is now in `ApiPipeline.NET.RateLimiting` namespace, which is now imported.
 
-- [ ] **Step 12.5: Run full suite and commit**
+- [x] **Step 12.5: Run full suite and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1639,7 +1639,7 @@ git commit -m "refactor: move embedded classes out of ServiceCollectionExtension
 **Files:**
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 
-- [ ] **Step 13.1: Update `UseResponseCompression` to use `IOptionsMonitor`**
+- [x] **Step 13.1: Update `UseResponseCompression` to use `IOptionsMonitor`**
 
 In `WebApplicationExtensions.cs`, update `UseResponseCompression` to read `IOptionsMonitor` inside the `UseWhen` predicate rather than snapshotting at build time:
 
@@ -1697,7 +1697,7 @@ private static PathString[] ComputeExcludedPaths(ResponseCompressionSettings set
         .ToArray();
 ```
 
-- [ ] **Step 13.2: Run full suite and commit**
+- [x] **Step 13.2: Run full suite and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1721,7 +1721,7 @@ git commit -m "fix: UseResponseCompression reads ExcludedPaths from IOptionsMoni
 - Modify: `src/ApiPipeline.NET/Middleware/SecurityHeadersMiddleware.cs`
 - Modify: `src/ApiPipeline.NET/Extensions/ServiceCollectionExtensions.cs`
 
-- [ ] **Step 14.1: Update `ApiPipelineTelemetry.cs`**
+- [x] **Step 14.1: Update `ApiPipelineTelemetry.cs`**
 
 Replace the entire file:
 
@@ -1845,7 +1845,7 @@ public static class ApiPipelineTelemetry
 }
 ```
 
-- [ ] **Step 14.2: Remove `RecordSecurityHeadersApplied` call from `SecurityHeadersMiddleware.cs`**
+- [x] **Step 14.2: Remove `RecordSecurityHeadersApplied` call from `SecurityHeadersMiddleware.cs`**
 
 In `SecurityHeadersMiddleware.cs`, remove:
 ```csharp
@@ -1853,7 +1853,7 @@ In `SecurityHeadersMiddleware.cs`, remove:
 ApiPipelineTelemetry.RecordSecurityHeadersApplied();
 ```
 
-- [ ] **Step 14.3: Add CORS rejection metric to `LiveConfigCorsPolicyProvider`**
+- [x] **Step 14.3: Add CORS rejection metric to `LiveConfigCorsPolicyProvider`**
 
 In `LiveConfigCorsPolicyProvider.cs`, after `builder.SetIsOriginAllowed(_ => false)`:
 
@@ -1867,7 +1867,7 @@ builder.SetIsOriginAllowed(origin =>
 });
 ```
 
-- [ ] **Step 14.4: Run full suite and commit**
+- [x] **Step 14.4: Run full suite and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -1890,7 +1890,7 @@ git commit -m "feat: enhance telemetry — rate limit dimensions, CORS rejected 
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 - Create: `tests/ApiPipeline.NET.Tests/RequestSizeMiddlewareTests.cs`
 
-- [ ] **Step 15.1: Create failing test**
+- [x] **Step 15.1: Create failing test**
 
 Create `tests/ApiPipeline.NET.Tests/RequestSizeMiddlewareTests.cs`:
 
@@ -1948,7 +1948,7 @@ public sealed class RequestSizeMiddlewareTests
 }
 ```
 
-- [ ] **Step 15.2: Run to confirm fail**
+- [x] **Step 15.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RequestSizeMiddlewareTests" -v
@@ -1956,7 +1956,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RequestSiz
 
 Expected: FAIL — `RequestSizeMiddleware` doesn't exist.
 
-- [ ] **Step 15.3: Create `RequestSizeMiddleware.cs`**
+- [x] **Step 15.3: Create `RequestSizeMiddleware.cs`**
 
 Create `src/ApiPipeline.NET/Middleware/RequestSizeMiddleware.cs`:
 
@@ -1985,7 +1985,7 @@ public sealed class RequestSizeMiddleware : IMiddleware
 }
 ```
 
-- [ ] **Step 15.4: Register in DI and expose `UseRequestSizeTracking()` extension**
+- [x] **Step 15.4: Register in DI and expose `UseRequestSizeTracking()` extension**
 
 Add to `ServiceCollectionExtensions.cs` (in `AddCorrelationId` or as a new method):
 
@@ -2015,7 +2015,7 @@ public static WebApplication UseRequestSizeTracking(this WebApplication app)
 }
 ```
 
-- [ ] **Step 15.5: Run all tests and commit**
+- [x] **Step 15.5: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -2039,7 +2039,7 @@ git commit -m "feat: add RequestSizeMiddleware recording Content-Length histogra
 - Modify: `tests/ApiPipeline.NET.Tests/ResponseCompressionTests.cs`
 - Modify: `tests/ApiPipeline.NET.Tests/OptionsValidationTests.cs`
 
-- [ ] **Step 16.1: Create `RequestLimitsTests.cs`**
+- [x] **Step 16.1: Create `RequestLimitsTests.cs`**
 
 Create `tests/ApiPipeline.NET.Tests/RequestLimitsTests.cs`:
 
@@ -2112,7 +2112,7 @@ public sealed class RequestLimitsTests
 }
 ```
 
-- [ ] **Step 16.2: Add untrusted proxy spoofing test to `ForwardedHeadersTests.cs`**
+- [x] **Step 16.2: Add untrusted proxy spoofing test to `ForwardedHeadersTests.cs`**
 
 Add to `ForwardedHeadersTests.cs`:
 
@@ -2154,7 +2154,7 @@ public async Task UseApiPipelineForwardedHeaders_Ignores_XForwardedFor_From_Untr
 }
 ```
 
-- [ ] **Step 16.3: Add excluded path test to `ResponseCompressionTests.cs`**
+- [x] **Step 16.3: Add excluded path test to `ResponseCompressionTests.cs`**
 
 Add to `ResponseCompressionTests.cs`:
 
@@ -2189,7 +2189,7 @@ public async Task ResponseCompression_ExcludedPath_Not_Compressed()
 }
 ```
 
-- [ ] **Step 16.4: Run all new and existing tests**
+- [x] **Step 16.4: Run all new and existing tests**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -2197,7 +2197,7 @@ dotnet test tests/ApiPipeline.NET.Tests/
 
 Expected: All tests pass.
 
-- [ ] **Step 16.5: Commit**
+- [x] **Step 16.5: Commit**
 
 ```bash
 git add tests/ApiPipeline.NET.Tests/RequestLimitsTests.cs \
@@ -2224,7 +2224,7 @@ git commit -m "test: fill coverage gaps — request limits, forwarded header spo
 - Create: `src/ApiPipeline.NET.Versioning/VersioningServiceCollectionExtensions.cs`
 - Modify: `samples/ApiPipeline.NET.Sample/Program.cs`
 
-- [ ] **Step 17.1: Create `IApiVersionReader` interface in core**
+- [x] **Step 17.1: Create `IApiVersionReader` interface in core**
 
 Create `src/ApiPipeline.NET/Versioning/IApiVersionReader.cs`:
 
@@ -2246,7 +2246,7 @@ public interface IApiVersionReader
 }
 ```
 
-- [ ] **Step 17.2: Update `ApiVersionDeprecationMiddleware` to use `IApiVersionReader` from DI**
+- [x] **Step 17.2: Update `ApiVersionDeprecationMiddleware` to use `IApiVersionReader` from DI**
 
 In `ApiVersionDeprecationMiddleware.cs`, update the constructor and `Invoke` method:
 
@@ -2369,14 +2369,14 @@ public sealed class ApiVersionDeprecationMiddleware
 }
 ```
 
-- [ ] **Step 17.3: Remove `Asp.Versioning.Mvc` from core project**
+- [x] **Step 17.3: Remove `Asp.Versioning.Mvc` from core project**
 
 In `src/ApiPipeline.NET/ApiPipeline.NET.csproj`, remove:
 ```xml
 <PackageReference Include="Asp.Versioning.Mvc" />
 ```
 
-- [ ] **Step 17.4: Create the satellite project**
+- [x] **Step 17.4: Create the satellite project**
 
 Create `src/ApiPipeline.NET.Versioning/ApiPipeline.NET.Versioning.csproj`:
 
@@ -2401,7 +2401,7 @@ Create `src/ApiPipeline.NET.Versioning/ApiPipeline.NET.Versioning.csproj`:
 </Project>
 ```
 
-- [ ] **Step 17.5: Create `AspVersioningApiVersionReader.cs`**
+- [x] **Step 17.5: Create `AspVersioningApiVersionReader.cs`**
 
 Create `src/ApiPipeline.NET.Versioning/AspVersioningApiVersionReader.cs`:
 
@@ -2422,7 +2422,7 @@ internal sealed class AspVersioningApiVersionReader : IApiVersionReader
 }
 ```
 
-- [ ] **Step 17.6: Create `VersioningServiceCollectionExtensions.cs`**
+- [x] **Step 17.6: Create `VersioningServiceCollectionExtensions.cs`**
 
 Create `src/ApiPipeline.NET.Versioning/VersioningServiceCollectionExtensions.cs`:
 
@@ -2455,7 +2455,7 @@ public static class VersioningServiceCollectionExtensions
 }
 ```
 
-- [ ] **Step 17.7: Update the sample to use the satellite**
+- [x] **Step 17.7: Update the sample to use the satellite**
 
 In `samples/ApiPipeline.NET.Sample/Program.cs`, replace `.AddApiVersionDeprecation(builder.Configuration)` with `.AddApiPipelineVersioning(builder.Configuration)`, and add the using:
 ```csharp
@@ -2467,13 +2467,13 @@ Also add the project reference to `samples/ApiPipeline.NET.Sample/ApiPipeline.NE
 <ProjectReference Include="..\..\src\ApiPipeline.NET.Versioning\ApiPipeline.NET.Versioning.csproj" />
 ```
 
-- [ ] **Step 17.8: Add satellite project to solution**
+- [x] **Step 17.8: Add satellite project to solution**
 
 ```bash
 dotnet sln add src/ApiPipeline.NET.Versioning/ApiPipeline.NET.Versioning.csproj
 ```
 
-- [ ] **Step 17.9: Build and run tests**
+- [x] **Step 17.9: Build and run tests**
 
 ```bash
 dotnet build
@@ -2482,7 +2482,7 @@ dotnet test tests/ApiPipeline.NET.Tests/
 
 Expected: All tests pass. The `ApiVersionDeprecationMiddlewareTests` tests that call `Asp.Versioning.ApiVersion` may need their project reference updated to reference `ApiPipeline.NET.Versioning`.
 
-- [ ] **Step 17.10: Commit**
+- [x] **Step 17.10: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Versioning/ \
@@ -2503,7 +2503,7 @@ git commit -m "feat: move Asp.Versioning.Mvc to ApiPipeline.NET.Versioning satel
 - Create: `src/ApiPipeline.NET.OutputCaching/OutputCachingServiceCollectionExtensions.cs`
 - Create: `src/ApiPipeline.NET.OutputCaching/OutputCachingWebApplicationExtensions.cs`
 
-- [ ] **Step 18.1: Add `PreferOutputCaching` flag to `ResponseCachingSettings`**
+- [x] **Step 18.1: Add `PreferOutputCaching` flag to `ResponseCachingSettings`**
 
 In `ResponseCachingSettings.cs`, add:
 
@@ -2516,7 +2516,7 @@ In `ResponseCachingSettings.cs`, add:
 public bool PreferOutputCaching { get; set; } = false;
 ```
 
-- [ ] **Step 18.2: Create the Output Caching satellite project**
+- [x] **Step 18.2: Create the Output Caching satellite project**
 
 Create `src/ApiPipeline.NET.OutputCaching/ApiPipeline.NET.OutputCaching.csproj`:
 
@@ -2540,7 +2540,7 @@ Create `src/ApiPipeline.NET.OutputCaching/ApiPipeline.NET.OutputCaching.csproj`:
 </Project>
 ```
 
-- [ ] **Step 18.3: Create `OutputCachingServiceCollectionExtensions.cs`**
+- [x] **Step 18.3: Create `OutputCachingServiceCollectionExtensions.cs`**
 
 Create `src/ApiPipeline.NET.OutputCaching/OutputCachingServiceCollectionExtensions.cs`:
 
@@ -2578,7 +2578,7 @@ public static class OutputCachingServiceCollectionExtensions
 }
 ```
 
-- [ ] **Step 18.4: Create `OutputCachingWebApplicationExtensions.cs`**
+- [x] **Step 18.4: Create `OutputCachingWebApplicationExtensions.cs`**
 
 Create `src/ApiPipeline.NET.OutputCaching/OutputCachingWebApplicationExtensions.cs`:
 
@@ -2604,7 +2604,7 @@ public static class OutputCachingWebApplicationExtensions
 }
 ```
 
-- [ ] **Step 18.5: Add to solution and build**
+- [x] **Step 18.5: Add to solution and build**
 
 ```bash
 dotnet sln add src/ApiPipeline.NET.OutputCaching/ApiPipeline.NET.OutputCaching.csproj
@@ -2612,7 +2612,7 @@ dotnet build
 dotnet test tests/ApiPipeline.NET.Tests/
 ```
 
-- [ ] **Step 18.6: Commit**
+- [x] **Step 18.6: Commit**
 
 ```bash
 git add src/ApiPipeline.NET/Options/ResponseCachingSettings.cs \
@@ -2630,7 +2630,7 @@ git commit -m "feat: add ApiPipeline.NET.OutputCaching satellite for distributed
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 - Create: `tests/ApiPipeline.NET.Tests/PipelineBuilderTests.cs`
 
-- [ ] **Step 19.1: Create failing tests**
+- [x] **Step 19.1: Create failing tests**
 
 Create `tests/ApiPipeline.NET.Tests/PipelineBuilderTests.cs`:
 
@@ -2736,7 +2736,7 @@ public sealed class PipelineBuilderTests
 }
 ```
 
-- [ ] **Step 19.2: Run to confirm fail**
+- [x] **Step 19.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~PipelineBuilderTests" -v
@@ -2744,7 +2744,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~PipelineBu
 
 Expected: FAIL — `UseApiPipeline` extension doesn't exist.
 
-- [ ] **Step 19.3: Create `IApiPipelineBuilder.cs`**
+- [x] **Step 19.3: Create `IApiPipelineBuilder.cs`**
 
 Create `src/ApiPipeline.NET/Pipeline/IApiPipelineBuilder.cs`:
 
@@ -2808,7 +2808,7 @@ public interface IApiPipelineBuilder
 }
 ```
 
-- [ ] **Step 19.4: Create `ApiPipelineBuilder.cs`**
+- [x] **Step 19.4: Create `ApiPipelineBuilder.cs`**
 
 Create `src/ApiPipeline.NET/Pipeline/ApiPipelineBuilder.cs`:
 
@@ -2892,7 +2892,7 @@ internal sealed class ApiPipelineBuilder : IApiPipelineBuilder
 }
 ```
 
-- [ ] **Step 19.5: Add `UseApiPipeline` to `WebApplicationExtensions.cs`**
+- [x] **Step 19.5: Add `UseApiPipeline` to `WebApplicationExtensions.cs`**
 
 Add the following method to `WebApplicationExtensions.cs`:
 
@@ -2936,7 +2936,7 @@ Add the required using at the top of `WebApplicationExtensions.cs`:
 using ApiPipeline.NET.Pipeline;
 ```
 
-- [ ] **Step 19.6: Run all tests and commit**
+- [x] **Step 19.6: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -2963,7 +2963,7 @@ git commit -m "feat: add IApiPipelineBuilder with phase-enforced ordering — Us
 - Modify: `src/ApiPipeline.NET/Extensions/WebApplicationExtensions.cs`
 - Create: `tests/ApiPipeline.NET.Tests/RequestValidationMiddlewareTests.cs`
 
-- [ ] **Step 20.1: Create failing tests**
+- [x] **Step 20.1: Create failing tests**
 
 Create `tests/ApiPipeline.NET.Tests/RequestValidationMiddlewareTests.cs`:
 
@@ -3055,7 +3055,7 @@ public sealed class RequestValidationMiddlewareTests
 }
 ```
 
-- [ ] **Step 20.2: Run to confirm fail**
+- [x] **Step 20.2: Run to confirm fail**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RequestValidationMiddlewareTests" -v
@@ -3063,7 +3063,7 @@ dotnet test tests/ApiPipeline.NET.Tests/ --filter "FullyQualifiedName~RequestVal
 
 Expected: FAIL — types don't exist.
 
-- [ ] **Step 20.3: Create `RequestValidationResult.cs`**
+- [x] **Step 20.3: Create `RequestValidationResult.cs`**
 
 Create `src/ApiPipeline.NET/Validation/RequestValidationResult.cs`:
 
@@ -3100,7 +3100,7 @@ public readonly struct RequestValidationResult
 }
 ```
 
-- [ ] **Step 20.4: Create `IRequestValidationFilter.cs`**
+- [x] **Step 20.4: Create `IRequestValidationFilter.cs`**
 
 Create `src/ApiPipeline.NET/Validation/IRequestValidationFilter.cs`:
 
@@ -3123,7 +3123,7 @@ public interface IRequestValidationFilter
 }
 ```
 
-- [ ] **Step 20.5: Create `RequestValidationMiddleware.cs`**
+- [x] **Step 20.5: Create `RequestValidationMiddleware.cs`**
 
 Create `src/ApiPipeline.NET/Middleware/RequestValidationMiddleware.cs`:
 
@@ -3178,7 +3178,7 @@ public sealed class RequestValidationMiddleware : IMiddleware
 }
 ```
 
-- [ ] **Step 20.6: Add `AddRequestValidation<T>()` to `ServiceCollectionExtensions.cs`**
+- [x] **Step 20.6: Add `AddRequestValidation<T>()` to `ServiceCollectionExtensions.cs`**
 
 Add to the public extension methods section:
 
@@ -3202,7 +3202,7 @@ Add the using at the top of `ServiceCollectionExtensions.cs`:
 using ApiPipeline.NET.Validation;
 ```
 
-- [ ] **Step 20.7: Add `UseRequestValidation()` to `WebApplicationExtensions.cs`**
+- [x] **Step 20.7: Add `UseRequestValidation()` to `WebApplicationExtensions.cs`**
 
 ```csharp
 /// <summary>
@@ -3231,7 +3231,7 @@ In `ApiPipelineBuilder.cs`:
 - Add `public IApiPipelineBuilder WithRequestValidation() { _requested.Add("RequestValidation"); return this; }`
 - Add `case "RequestValidation": app.UseRequestValidation(); break;` to the `Build` switch
 
-- [ ] **Step 20.8: Run all tests and commit**
+- [x] **Step 20.8: Run all tests and commit**
 
 ```bash
 dotnet test tests/ApiPipeline.NET.Tests/
@@ -3251,7 +3251,7 @@ git commit -m "feat: add IRequestValidationFilter pipeline hook for OWASP API7 r
 
 ## Final Verification
 
-- [ ] **Run complete test suite**
+- [x] **Run complete test suite**
 
 ```bash
 dotnet test
@@ -3259,15 +3259,15 @@ dotnet test
 
 Expected: All tests pass. No regressions.
 
-- [ ] **Build all projects**
+- [x] **Build all projects**
 
 ```bash
 dotnet build --configuration Release
 ```
 
-Expected: Clean build with zero errors. Warnings for `[Obsolete]` on `ConfigureKestrelRequestLimits` are expected.
+Expected: Clean build with zero errors.
 
-- [ ] **Final commit — update sample to use `UseApiPipeline` builder**
+- [x] **Final commit — update sample to use `UseApiPipeline` builder**
 
 Update `samples/ApiPipeline.NET.Sample/Program.cs` to replace the individual `Use*()` calls with `UseApiPipeline(...)`:
 

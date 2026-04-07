@@ -19,6 +19,32 @@ Run the sample from the repository root:
 dotnet run --project samples/ApiPipeline.NET.Sample
 ```
 
+### Configuration scenarios (options pattern)
+
+| Scenario | When to use | Where it lives |
+|----------|-------------|----------------|
+| **Shared defaults** | Baseline JSON merged into every environment | `appsettings.json` |
+| **Development** | Open CORS, permissive rate limits, HSTS off | `appsettings.Development.json` (`ASPNETCORE_ENVIRONMENT=Development`) |
+| **Production / K8s ingress** | Strict CORS, trusted proxy CIDRs, `AnonymousFallback: Reject` | `appsettings.Production.json` |
+| **Copy-paste fragments** | Minimal API, ingress, null-IP rate limit, output-cache migration | `ConfigurationSnippets/*.json` + `ConfigurationSnippets/README.md` |
+
+Override any key via [environment variables](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/#environment-variables) or secrets (for example `RateLimitingOptions__Enabled=false`).
+
+### Configuration section names (JSON ↔ `IConfiguration`)
+
+These names match `ApiPipeline.NET.Configuration.ApiPipelineConfigurationKeys` and the options classes they bind to:
+
+| JSON section | Options type |
+|--------------|----------------|
+| `RateLimitingOptions` | `RateLimitingOptions` |
+| `ResponseCompressionOptions` | `ResponseCompressionSettings` |
+| `ResponseCachingOptions` | `ResponseCachingSettings` |
+| `SecurityHeaders` | `SecurityHeadersSettings` |
+| `CorsOptions` | `CorsSettings` |
+| `ApiVersionDeprecationOptions` | `ApiVersionDeprecationOptions` |
+| `RequestLimitsOptions` | `RequestLimitsOptions` |
+| `ForwardedHeadersOptions` | `ForwardedHeadersSettings` |
+
 Then browse to:
 
 - `https://localhost:5001/api/v1/orders` (deprecated version, will include deprecation headers)
@@ -28,11 +54,14 @@ Then browse to:
 
 ### Wiring the pipeline and versioned API
 
-- **In `Program.cs`**:
+- **In `Program.cs`** (see repository file for the full, commented version):
 
 ```csharp
 using ApiPipeline.NET.Extensions;
 using ApiPipeline.NET.OpenTelemetry;
+using ApiPipeline.NET.Sample;
+using ApiPipeline.NET.Validation;
+using ApiPipeline.NET.Versioning;
 using Asp.Versioning;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,14 +73,17 @@ builder.Services
     .AddResponseCaching(builder.Configuration)
     .AddSecurityHeaders(builder.Configuration)
     .AddCors(builder.Configuration)
-    .AddApiVersionDeprecation(builder.Configuration)
+    .AddApiPipelineVersioning(builder.Configuration)
     .AddRequestLimits(builder.Configuration)
     .AddForwardedHeaders(builder.Configuration)
+    .AddRequestSizeTracking()
+    .AddRequestValidation<SampleRequestValidationFilter>()
     .AddApiPipelineExceptionHandler();
 
 builder.AddApiPipelineObservability();
-builder.ConfigureKestrelRequestLimits();
 
+builder.Services.AddAuthentication();
+builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddApiVersioning(options =>
 {
@@ -63,18 +95,20 @@ builder.Services.AddApiVersioning(options =>
 
 var app = builder.Build();
 
-app.UseApiPipelineForwardedHeaders();
-app.UseCorrelationId();
-app.UseApiPipelineExceptionHandler();
-app.UseHttpsRedirection();
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseRateLimiting();
-app.UseResponseCompression();
-app.UseResponseCaching();
-app.UseSecurityHeaders();
-app.UseApiVersionDeprecation();
+app.UseApiPipeline(pipeline => pipeline
+    .WithForwardedHeaders()
+    .WithCorrelationId()
+    .WithExceptionHandler()
+    .WithHttpsRedirection()
+    .WithCors()
+    .WithAuthentication()
+    .WithAuthorization()
+    .WithRequestValidation()
+    .WithRateLimiting()
+    .WithResponseCompression()
+    .WithResponseCaching()
+    .WithSecurityHeaders()
+    .WithVersionDeprecation());
 
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
 
@@ -125,6 +159,7 @@ All behavior is driven by the configuration sections below.
 - **Enabled**: When `false`, no rate limiting middleware is applied.
 - **Policies**: A list of named policies built on `System.Threading.RateLimiting` primitives (fixed window, sliding window, concurrency, token bucket).
 - **DefaultPolicy**: Controls which policy is used for the **global** limiter.
+- **AnonymousFallback**: When `RemoteIpAddress` is null (misconfigured forwarded headers, some test hosts), choose `Reject` (429), `RateLimit` (shared bucket), or `Allow`. Production ingress configs usually use `Reject`; local development often uses `RateLimit` so TestHost still exercises rate limits.
 
 **How it is used**:
 
@@ -196,6 +231,7 @@ app.MapGet("/weather", handler)
 - **Enabled**: When `false`, `UseResponseCaching` is not added.
 - **SizeLimitBytes**: Upper bound on the in‑memory cache size.
 - **UseCaseSensitivePaths**: Whether `/Weather` and `/weather` are treated as different cache keys.
+- **PreferOutputCaching**: When `true`, signals intent to migrate to the **ApiPipeline.NET.OutputCaching** satellite; core does not enable distributed output cache from this flag alone.
 
 **How it is used**:
 
@@ -346,13 +382,44 @@ app.MapGet("/weather", handler)
 
 **How it is used**:
 
-- `ConfigureKestrelRequestLimits` binds `RequestLimitsOptions` and sets:
-  - `KestrelServerLimits.MaxRequestBodySize`
-  - `MaxRequestHeadersTotalSize`
-  - `MaxRequestHeaderCount`
-- `AddRequestLimits` also automatically configures ASP.NET Core `FormOptions` based on the same settings (body size and value count limits).
+- `AddRequestLimits` binds `RequestLimitsOptions`, applies them to Kestrel via `IConfigureOptions<KestrelServerOptions>`, and configures ASP.NET Core `FormOptions` from the same settings (body size and value count limits).
 
 **Why it matters**: Defends your APIs from very large uploads or header attacks that can exhaust memory or CPU, while letting you raise limits for known safe scenarios (e.g. file upload APIs).
+
+---
+
+### Request size tracking (`AddRequestSizeTracking` / `UseRequestSizeTracking`)
+
+**Purpose**: Records incoming `Content-Length` values to the `apipipeline.request.body_bytes` metric for capacity planning.
+
+**Registration**:
+
+- `AddRequestSizeTracking()` registers `RequestSizeMiddleware` in DI.
+- Call `app.UseRequestSizeTracking()` **after** `UseApiPipelineForwardedHeaders` when you build the pipeline manually. The `UseApiPipeline` fluent helper does not include request-size middleware yet; this sample calls `AddRequestSizeTracking()` so you can add `UseRequestSizeTracking()` in the right place for your host (see `RequestSizeMiddleware` XML remarks in the core library).
+
+---
+
+### Request validation (`AddRequestValidation<T>` / `WithRequestValidation`)
+
+**Purpose**: OWASP API7-style hook — run `IRequestValidationFilter` implementations before your endpoints execute.
+
+**Registration**:
+
+- Implement `IRequestValidationFilter` (see `SampleRequestValidationFilter.cs` in this project).
+- `AddRequestValidation<TFilter>()` registers your filter; `UseApiPipeline(... WithRequestValidation())` adds the middleware after authentication/authorization.
+
+---
+
+### `PreferOutputCaching` and the Output Caching satellite
+
+**Purpose**: `ResponseCachingOptions.PreferOutputCaching` is a **migration signal** in configuration only; the core library does not enable distributed output caching.
+
+**When migrating**:
+
+1. Add a project reference to `ApiPipeline.NET.OutputCaching` (this sample already references it).
+2. Call `AddApiPipelineOutputCaching()` in `Program.cs` after other service registration.
+3. Call `UseApiPipelineOutputCaching()` after `UseAuthorization` in the pipeline (see satellite XML docs).
+4. Set `"PreferOutputCaching": true` in `ResponseCachingOptions` so operators know the intent.
 
 ---
 

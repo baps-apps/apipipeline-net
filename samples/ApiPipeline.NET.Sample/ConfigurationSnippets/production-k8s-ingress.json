@@ -1,0 +1,20 @@
+{
+  "ForwardedHeadersOptions": {
+    "Enabled": true,
+    "ForwardLimit": 2,
+    "ClearDefaultProxies": true,
+    "KnownNetworks": ["10.0.0.0/8"],
+    "KnownProxies": [],
+    "SuppressServerHeader": true
+  },
+  "CorsOptions": {
+    "Enabled": true,
+    "AllowAllInDevelopment": false,
+    "AllowedOrigins": ["https://my-frontend.example.com"],
+    "AllowCredentials": true
+  },
+  "RateLimitingOptions": {
+    "Enabled": true,
+    "AnonymousFallback": "Reject"
+  }
+}

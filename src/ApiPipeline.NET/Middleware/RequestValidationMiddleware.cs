@@ -1,6 +1,4 @@
 using ApiPipeline.NET.Validation;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 
 namespace ApiPipeline.NET.Middleware;
 

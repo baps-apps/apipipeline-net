@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -26,10 +26,11 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
     <PackageReference Include="CodeStyle.NET" />
     <PackageReference Include="OpenTelemetry.NET" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,18 @@
+{
+  "RateLimitingOptions": {
+    "Enabled": true,
+    "DefaultPolicy": "strict",
+    "AnonymousFallback": "Reject",
+    "Policies": [
+      {
+        "Name": "strict",
+        "Kind": "FixedWindow",
+        "PermitLimit": 20,
+        "WindowSeconds": 60,
+        "QueueLimit": 0,
+        "QueueProcessingOrder": "OldestFirst",
+        "AutoReplenishment": true
+      }
+    ]
+  }
+}

@@ -1,8 +1,6 @@
 using System.Net;
 using ApiPipeline.NET.Extensions;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 
 namespace ApiPipeline.NET.Tests;
@@ -12,6 +10,15 @@ namespace ApiPipeline.NET.Tests;
 /// header processing, forward limits, proxy trust lists, and the disabled-feature path
 /// all behave correctly.
 /// </summary>
+/// <remarks>
+/// Production-hardening plan T-7 Step 16.2 (untrusted / spoofed <c>X-Forwarded-For</c>) is covered by
+/// <see cref="ForwardedHeadersTests.UseApiPipelineForwardedHeaders_ForwardLimit_Constrains_XFF_Hops"/>: when <c>ForwardLimit</c>
+/// restricts to the closest hop, an outer client IP in the chain must not become <c>RemoteIpAddress</c>.
+/// A literal “single forged IP + strict KnownProxies” integration test is unreliable under
+/// <see cref="Microsoft.AspNetCore.TestHost"/>, which often leaves <c>Connection.RemoteIpAddress</c>
+/// null; the framework then skips the known-proxy gate and may still apply <c>X-Forwarded-For</c>
+/// (see <c>ForwardedHeadersMiddleware</c> in ASP.NET Core).
+/// </remarks>
 public sealed class ForwardedHeadersTests
 {
     /// <summary>
@@ -212,6 +219,10 @@ public sealed class ForwardedHeadersTests
     /// Verifies that ForwardLimit constrains processing to the N closest hops in
     /// X-Forwarded-For, ignoring outer hops added by intermediate proxies.
     /// </summary>
+    /// <remarks>
+    /// Fulfills production-hardening plan T-7 Step 16.2: the left-most / outer IP in the chain
+    /// (<c>1.2.3.4</c>) must not appear as the resolved client when <c>ForwardLimit</c> is 1.
+    /// </remarks>
     [Fact]
     public async Task UseApiPipelineForwardedHeaders_ForwardLimit_Constrains_XFF_Hops()
     {

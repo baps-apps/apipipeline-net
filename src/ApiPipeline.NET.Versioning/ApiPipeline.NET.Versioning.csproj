@@ -3,16 +3,31 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
+    <EnableSourceLink>true</EnableSourceLink>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>ApiPipeline.NET.Versioning</PackageId>
     <Version>1.0.0</Version>
     <Authors>BAPS Dev Team</Authors>
     <Description>Asp.Versioning.Mvc integration for ApiPipeline.NET API version deprecation headers.</Description>
+    <PackageTags>aspnetcore;api;pipeline;versioning;deprecation;asp-versioning</PackageTags>
+    <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <RepositoryUrl>https://github.com/baps-apps/apipipeline-net.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
     <PackageReference Include="Asp.Versioning.Mvc" />
+    <PackageReference Include="CodeStyle.NET" />
   </ItemGroup>
 </Project>

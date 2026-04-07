@@ -1,10 +1,7 @@
 using System.Net;
 using ApiPipeline.NET.Extensions;
 using FluentAssertions;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Hosting;
 
 namespace ApiPipeline.NET.Tests;
 

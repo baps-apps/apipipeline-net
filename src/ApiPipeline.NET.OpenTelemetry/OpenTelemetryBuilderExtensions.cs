@@ -1,4 +1,5 @@
 using ApiPipeline.NET.Observability;
+using Microsoft.AspNetCore.Builder;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.NET.Extensions;
 using OpenTelemetry.NET.Models;

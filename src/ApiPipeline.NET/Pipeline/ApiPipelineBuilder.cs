@@ -1,5 +1,4 @@
 using ApiPipeline.NET.Extensions;
-using Microsoft.AspNetCore.Builder;
 
 namespace ApiPipeline.NET.Pipeline;
 
