@@ -41,7 +41,6 @@ try {
 $PackageOutput = Join-Path $RepoRoot "nupkgs"
 $Namespace = $env:GITHUB_NAMESPACE ?? "baps-apps"
 $RepoName = "apipipeline-net"
-$SourceName = "github"
 
 # Packages to publish (in build order — core first, then dependents)
 $Packages = @(
@@ -95,41 +94,10 @@ Write-Host "Publishing ApiPipeline.NET packages v$Version to GitHub Packages" -F
 Write-Host "  Packages: $($Packages | ForEach-Object { $_.Name } | Join-String -Separator ', ')"
 Write-Host ""
 
-# Step 1: Authenticate
-Write-Host "Step 1: Authenticating to GitHub Packages..." -ForegroundColor Yellow
+# Step 1: Verify credentials
+Write-Host "Step 1: Verifying credentials..." -ForegroundColor Yellow
 $sourceUrl = "https://nuget.pkg.github.com/$Namespace/index.json"
-
-$username = $null
-if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
-    if ($IsWindows) {
-        $username = $env:USERNAME
-    } else {
-        $username = $env:USER
-    }
-} else {
-    if ($env:OS -like "*Windows*" -or $env:USERNAME) {
-        $username = $env:USERNAME
-    } else {
-        $username = $env:USER
-    }
-}
-
-if ([string]::IsNullOrWhiteSpace($username)) {
-    $username = $env:USERNAME ?? $env:USER ?? "github"
-    Write-Warning "Could not determine username, using: $username"
-}
-
-try {
-    dotnet nuget add source $sourceUrl `
-        --name $SourceName `
-        --username $username `
-        --password $GitHubPAT `
-        --store-password-in-clear-text 2>&1 | Out-Null
-} catch {
-    # Source might already exist
-}
-
-Write-Host "Authentication configured" -ForegroundColor Green
+Write-Host "Target feed: $sourceUrl" -ForegroundColor Green
 Write-Host ""
 
 # Step 2: Update version in all .csproj files if version was provided as parameter
@@ -177,7 +145,7 @@ if (-not (Test-Path $PackageOutput)) {
 }
 foreach ($pkg in $Packages) {
     Write-Host "  Packing $($pkg.Name)..." -ForegroundColor Cyan
-    dotnet pack $pkg.ProjectPath --configuration Release --no-build --include-symbols --output $PackageOutput
+    dotnet pack $pkg.ProjectPath --configuration Release --no-build --output $PackageOutput
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Error: Package creation failed for $($pkg.Name)" -ForegroundColor Red
         exit 1
@@ -244,7 +212,7 @@ function Publish-NuGetPackage {
         [string]$PackageFile,
         [string]$Token,
         [string]$OrgName,
-        [string]$Source
+        [string]$SourceUrl
     )
 
     $versionCheck = Test-PackageVersion -PackageName $PackageName -PackageVersion $PackageVersion -Token $Token -OrgName $OrgName
@@ -265,10 +233,10 @@ function Publish-NuGetPackage {
         Write-Host "    Publishing package (will handle errors if version exists)..." -ForegroundColor Yellow
     }
 
-    dotnet nuget push $PackageFile --api-key $Token --source $Source
+    dotnet nuget push $PackageFile --api-key $Token --source $SourceUrl
 
     if ($LASTEXITCODE -ne 0) {
-        $pushOutput = dotnet nuget push $PackageFile --api-key $Token --source $Source 2>&1 | Out-String
+        $pushOutput = dotnet nuget push $PackageFile --api-key $Token --source $SourceUrl 2>&1 | Out-String
         $pushOutputLower = $pushOutput.ToLower()
         $packageExists = $pushOutputLower -match "already exists" -or $pushOutputLower -match "conflict" -or $pushOutputLower -match "409" -or $pushOutputLower -match "package.*exist"
 
@@ -279,7 +247,7 @@ function Publish-NuGetPackage {
                 $deleted = Remove-PackageVersion -PackageName $PackageName -PackageVersion $PackageVersion -Token $Token -OrgName $OrgName -VersionId $versionCheck.VersionId
                 if ($deleted) {
                     Start-Sleep -Seconds 2
-                    dotnet nuget push $PackageFile --api-key $Token --source $Source
+                    dotnet nuget push $PackageFile --api-key $Token --source $SourceUrl
                     if ($LASTEXITCODE -ne 0) {
                         Write-Host "Error: Package publish failed after deletion for $PackageName" -ForegroundColor Red
                         exit 1
@@ -324,19 +292,7 @@ foreach ($pkg in $Packages) {
         -PackageFile $PackageFile `
         -Token $GitHubPAT `
         -OrgName $Namespace `
-        -Source $SourceName
-
-    # Push symbols package if present
-    $SymbolsFile = Join-Path $PackageOutput "$($pkg.Name).$Version.snupkg"
-    if (Test-Path $SymbolsFile) {
-        Write-Host "    Publishing symbols package..." -ForegroundColor Yellow
-        dotnet nuget push $SymbolsFile --api-key $GitHubPAT --source $SourceName
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "    Warning: Symbols package publish failed (non-fatal)" -ForegroundColor Yellow
-        } else {
-            Write-Host "    Symbols package published" -ForegroundColor Green
-        }
-    }
+        -SourceUrl $sourceUrl
 
     Write-Host "  $($pkg.Name) published successfully" -ForegroundColor Green
 }

@@ -5,9 +5,6 @@
     <Nullable>enable</Nullable>
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
-    <EnableSourceLink>true</EnableSourceLink>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageId>ApiPipeline.NET.OpenTelemetry</PackageId>
     <Version>1.0.0</Version>
     <Authors>BAPS Dev Team</Authors>
@@ -16,11 +13,8 @@
     <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <RepositoryUrl>https://github.com/baps-apps/apipipeline-net.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
