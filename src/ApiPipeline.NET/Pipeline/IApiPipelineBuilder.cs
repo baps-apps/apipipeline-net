@@ -28,6 +28,9 @@ public interface IApiPipelineBuilder
     /// <summary>Adds authorization (Auth phase).</summary>
     IApiPipelineBuilder WithAuthorization();
 
+    /// <summary>Adds request validation filters (after Auth phase, before endpoints).</summary>
+    IApiPipelineBuilder WithRequestValidation();
+
     /// <summary>Adds rate limiting (RateLimiting phase — always after auth).</summary>
     IApiPipelineBuilder WithRateLimiting();
 

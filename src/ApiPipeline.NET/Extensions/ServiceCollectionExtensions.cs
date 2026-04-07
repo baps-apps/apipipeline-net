@@ -8,6 +8,7 @@ using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Observability;
 using ApiPipeline.NET.Options;
 using ApiPipeline.NET.RateLimiting;
+using ApiPipeline.NET.Validation;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -178,6 +179,19 @@ public static class ServiceCollectionExtensions
             };
         });
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers a request validation filter. Multiple filters can be registered and are
+    /// evaluated in registration order. The first failure short-circuits the pipeline.
+    /// Also registers <see cref="RequestValidationMiddleware"/> for DI activation.
+    /// </summary>
+    public static IServiceCollection AddRequestValidation<TFilter>(this IServiceCollection services)
+        where TFilter : class, IRequestValidationFilter
+    {
+        services.AddTransient<IRequestValidationFilter, TFilter>();
+        services.TryAddTransient<RequestValidationMiddleware>();
         return services;
     }
 

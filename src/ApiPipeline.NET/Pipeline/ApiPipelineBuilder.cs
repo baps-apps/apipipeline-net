@@ -23,6 +23,7 @@ internal sealed class ApiPipelineBuilder : IApiPipelineBuilder
         "Cors",
         "Authentication",
         "Authorization",
+        "RequestValidation",
         "RateLimiting",
         "ResponseCompression",
         "ResponseCaching",
@@ -37,6 +38,7 @@ internal sealed class ApiPipelineBuilder : IApiPipelineBuilder
     public IApiPipelineBuilder WithCors()                 { _requested.Add("Cors"); return this; }
     public IApiPipelineBuilder WithAuthentication()       { _requested.Add("Authentication"); return this; }
     public IApiPipelineBuilder WithAuthorization()        { _requested.Add("Authorization"); return this; }
+    public IApiPipelineBuilder WithRequestValidation()    { _requested.Add("RequestValidation"); return this; }
     public IApiPipelineBuilder WithRateLimiting()         { _requested.Add("RateLimiting"); return this; }
     public IApiPipelineBuilder WithResponseCompression()  { _requested.Add("ResponseCompression"); return this; }
     public IApiPipelineBuilder WithResponseCaching()      { _requested.Add("ResponseCaching"); return this; }
@@ -66,6 +68,7 @@ internal sealed class ApiPipelineBuilder : IApiPipelineBuilder
                 case "Cors":                app.UseCors(); break;
                 case "Authentication":      app.UseAuthentication(); break;
                 case "Authorization":       app.UseAuthorization(); break;
+                case "RequestValidation":   app.UseRequestValidation(); break;
                 case "RateLimiting":        app.UseRateLimiting(); break;
                 case "ResponseCompression": app.UseResponseCompression(); break;
                 case "ResponseCaching":     app.UseResponseCaching(); break;

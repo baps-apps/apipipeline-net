@@ -2,6 +2,7 @@ using System.Net;
 using ApiPipeline.NET.Middleware;
 using ApiPipeline.NET.Options;
 using ApiPipeline.NET.Pipeline;
+using ApiPipeline.NET.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Logging;
@@ -55,6 +56,18 @@ public static class WebApplicationExtensions
     public static WebApplication UseCorrelationId(this WebApplication app)
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
+        return app;
+    }
+
+    /// <summary>
+    /// Adds the request validation middleware. Runs all registered
+    /// <see cref="IRequestValidationFilter"/> implementations before reaching endpoints.
+    /// Requires <see cref="ServiceCollectionExtensions.AddRequestValidation{TFilter}"/> and
+    /// <see cref="ServiceCollectionExtensions.AddApiPipelineExceptionHandler"/> to be called first.
+    /// </summary>
+    public static WebApplication UseRequestValidation(this WebApplication app)
+    {
+        app.UseMiddleware<RequestValidationMiddleware>();
         return app;
     }
 
