@@ -1,59 +1,50 @@
 using ApiPipeline.NET.Observability;
 using Microsoft.AspNetCore.Builder;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.NET.Extensions;
-using OpenTelemetry.NET.Models;
 using OpenTelemetry.Trace;
 
 namespace ApiPipeline.NET.OpenTelemetry;
 
 /// <summary>
-/// Extension methods to add OpenTelemetry observability (tracing, metrics, and logging)
-/// to an ASP.NET Core application using the OpenTelemetry.NET package.
-/// Automatically registers ApiPipeline.NET's <see cref="ApiPipelineTelemetry.ActivitySource"/>
-/// and <see cref="ApiPipelineTelemetry.Meter"/> so pipeline traces and metrics are exported.
+/// Extension methods that plug ApiPipeline.NET's <see cref="ApiPipelineTelemetry.ActivitySource"/> and
+/// <see cref="ApiPipelineTelemetry.Meter"/> into an application's existing OpenTelemetry providers, so
+/// pipeline traces and metrics are exported.
 /// </summary>
+/// <remarks>
+/// Bootstrapping observability (tracing, metrics, structured logging) is the responsibility of the
+/// OpenTelemetry.NET package — call <c>builder.AddObservability()</c> for that. This package only
+/// contributes ApiPipeline.NET's own telemetry sources on top of that bootstrap.
+/// </remarks>
 public static class OpenTelemetryBuilderExtensions
 {
     /// <summary>
-    /// Adds full OpenTelemetry observability (tracing, metrics, structured logging) to the application
-    /// using the OpenTelemetry.NET package. Configuration is read from <c>AppSettings</c> and
-    /// <c>OpenTelemetryOptions</c> sections in appsettings.json.
+    /// Registers ApiPipeline.NET's <see cref="ApiPipelineTelemetry.ActivitySource"/> and
+    /// <see cref="ApiPipelineTelemetry.Meter"/> with the OpenTelemetry tracer and meter providers.
     /// </summary>
+    /// <remarks>
+    /// Call this after the application has bootstrapped OpenTelemetry via <c>builder.AddObservability()</c>
+    /// (from the OpenTelemetry.NET package). It adds ApiPipeline.NET's traces and metrics to the existing
+    /// providers without re-running the bootstrap.
+    /// <para>
+    /// Logs require no registration here: ApiPipeline.NET middleware writes through <c>ILogger</c>, which the
+    /// host's logging pipeline (configured by <c>AddObservability</c>) already captures and exports.
+    /// </para>
+    /// Typical usage:
+    /// <code>
+    /// builder.AddObservability();              // OpenTelemetry.NET — host bootstrap (once per process)
+    /// builder.AddApiPipelineTelemetrySources(); // ApiPipeline.NET — adds its ActivitySource and Meter
+    /// </code>
+    /// </remarks>
     /// <param name="builder">The <see cref="WebApplicationBuilder"/>.</param>
     /// <returns>The same builder for chaining.</returns>
-    public static WebApplicationBuilder AddApiPipelineObservability(this WebApplicationBuilder builder)
-    {
-        builder.AddObservability();
-        RegisterApiPipelineSources(builder);
-        return builder;
-    }
-
-    /// <summary>
-    /// Adds full OpenTelemetry observability with programmatic option overrides.
-    /// Values from appsettings.json are loaded first, then the <paramref name="configureOptions"/>
-    /// callback is applied before validation.
-    /// </summary>
-    /// <param name="builder">The <see cref="WebApplicationBuilder"/>.</param>
-    /// <param name="configureOptions">
-    /// Callback to override <see cref="OpenTelemetryOptions"/> values after loading from configuration.
-    /// </param>
-    /// <returns>The same builder for chaining.</returns>
-    public static WebApplicationBuilder AddApiPipelineObservability(
-        this WebApplicationBuilder builder,
-        Action<OpenTelemetryOptions> configureOptions)
-    {
-        builder.AddObservability(configureOptions);
-        RegisterApiPipelineSources(builder);
-        return builder;
-    }
-
-    private static void RegisterApiPipelineSources(WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddApiPipelineTelemetrySources(this WebApplicationBuilder builder)
     {
         builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
             tracing.AddSource(ApiPipelineTelemetry.ActivitySourceName));
 
         builder.Services.ConfigureOpenTelemetryMeterProvider(metrics =>
             metrics.AddMeter(ApiPipelineTelemetry.MeterName));
+
+        return builder;
     }
 }

@@ -7,7 +7,8 @@
 ```text
 Program.cs
   ── builder.Services.AddApiPipeline(configuration)        // bind options + register services
-  ── builder.AddApiPipelineObservability()                  // (optional) OpenTelemetry wiring
+  ── builder.AddObservability()                            // (optional) OpenTelemetry.NET bootstrap
+  ── builder.AddApiPipelineTelemetrySources()              // (optional) register ApiPipeline.NET traces + metrics
   ── builder.Services.AddApiPipelineVersioning(config)      // (optional) Asp.Versioning integration
   ── app.UseApiPipeline(pipeline => pipeline.With*(...))    // middleware composition
   ── app.MapControllers() / app.MapEndpoints(...)           // your routes

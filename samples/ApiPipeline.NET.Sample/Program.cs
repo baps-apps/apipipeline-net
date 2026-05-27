@@ -1,8 +1,8 @@
 using ApiPipeline.NET.Extensions;
 using ApiPipeline.NET.OpenTelemetry;
 using ApiPipeline.NET.Sample;
-using ApiPipeline.NET.Versioning;
 using Asp.Versioning;
+using OpenTelemetry.NET.Extensions;
 
 // =============================================================================
 // Options pattern
@@ -20,7 +20,10 @@ builder.Services
     .AddApiPipeline(builder.Configuration)
     .AddRequestValidation<SampleRequestValidationFilter>();
 
-builder.AddApiPipelineObservability();
+// OpenTelemetry.NET bootstraps observability (tracing, metrics, structured logging);
+// ApiPipeline.NET then plugs in its own ActivitySource and Meter.
+builder.AddObservability();
+builder.AddApiPipelineTelemetrySources();
 
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();

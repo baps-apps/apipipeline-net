@@ -115,13 +115,14 @@ The resolved `RateLimitPolicy` object is stored in `HttpContext.Items["ApiPipeli
 
 | Metric | Type | When emitted |
 |---|---|---|
-| `apipipeline.ratelimit.rejected` | Counter | Rate limit rejection (429) |
-| `apipipeline.deprecation.headers_added` | Counter | Deprecation headers emitted |
+| `apipipeline.ratelimit.rejected` | Counter | Rate limit rejection (429); dims `policy_name`, `partition_type` |
+| `apipipeline.deprecation.headers_added` | Counter | Deprecation headers emitted; dim `apipipeline.api_version` |
 | `apipipeline.correlation_id.processed` | Counter | Correlation ID processed |
-| `apipipeline.security_headers.applied` | Counter | Security headers applied |
 | `apipipeline.exceptions.handled` | Counter | Exceptions caught by handler |
+| `apipipeline.cors.rejected` | Counter | CORS request rejected (disallowed origin) |
+| `apipipeline.request.body_bytes` | Histogram | Incoming request body size (bytes, from Content-Length) |
 
-The `ApiPipeline.NET.OpenTelemetry` satellite package registers these with OpenTelemetry providers via `builder.AddApiPipelineObservability()`.
+The `ApiPipeline.NET.OpenTelemetry` satellite package registers these with OpenTelemetry providers via `builder.AddApiPipelineTelemetrySources()`. Bootstrapping observability itself is the OpenTelemetry.NET package's responsibility (`builder.AddObservability()`, once per process); this package only contributes the `ActivitySource`/`Meter`.
 
 ## Extension points
 

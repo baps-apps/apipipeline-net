@@ -146,7 +146,7 @@ For OpenTelemetry observability (tracing, metrics, structured logging), add the 
 dotnet add package ApiPipeline.NET.OpenTelemetry --source github
 ```
 
-Then call `builder.AddApiPipelineObservability()` in your `Program.cs` (see [Observability](#observability)).
+Then, in your `Program.cs`, bootstrap OpenTelemetry with `builder.AddObservability()` and register ApiPipeline.NET's traces/metrics with `builder.AddApiPipelineTelemetrySources()` (see [Observability](#observability)).
 
 Consumers reference the **ApiPipeline.NET** NuGet package, not a project reference.
 
@@ -497,14 +497,24 @@ Before deploying to production, ensure:
   - If you use Serilog or another structured logger, prefer enrichers that automatically attach the correlation ID to all events.
 - **OpenTelemetry**:
   - The core package sets the **correlation ID** on the current `Activity` (tag `correlation_id`) and emits **metrics** via `System.Diagnostics.Metrics`.
-  - To export these with OpenTelemetry, add the **ApiPipeline.NET.OpenTelemetry** package and call `builder.AddApiPipelineObservability()` (extension on `WebApplicationBuilder`).
-  - Configuration is read from `AppSettings` and `OpenTelemetryOptions` sections in `appsettings.json`, with optional code-based overrides.
-  - This automatically registers ApiPipeline.NET's `ActivitySource` and `Meter` with OpenTelemetry so all pipeline traces and metrics are exported. Metrics include:
-    - `apipipeline.ratelimit.rejected` – rate limit rejections
-    - `apipipeline.deprecation.headers_added` – deprecation headers emitted
+  - To export these, add the **ApiPipeline.NET.OpenTelemetry** package. Bootstrapping OpenTelemetry is the **OpenTelemetry.NET** package's job — call `builder.AddObservability()` for that (once per process) — and then call `builder.AddApiPipelineTelemetrySources()` (extension on `WebApplicationBuilder`) to register ApiPipeline.NET's `ActivitySource` and `Meter` with the existing providers.
+
+    ```csharp
+    builder.AddObservability();               // OpenTelemetry.NET — host bootstrap (once per process)
+    builder.AddApiPipelineTelemetrySources(); // ApiPipeline.NET — adds its ActivitySource and Meter
+    ```
+
+  - Observability configuration (`AppSettings`/`OpenTelemetryOptions` sections, code-based overrides) is handled by `AddObservability()` — see the OpenTelemetry.NET docs.
+  - Logs need no extra wiring: pipeline middleware writes through `ILogger`, which the host logging pipeline already captures.
+  - `AddApiPipelineTelemetrySources()` registers ApiPipeline.NET's `ActivitySource` and `Meter` so all pipeline traces and metrics are exported. Metrics include:
+    - `apipipeline.ratelimit.rejected` – rate limit rejections (dimensions: `policy_name`, `partition_type`)
+    - `apipipeline.deprecation.headers_added` – deprecation headers emitted (dimension: `apipipeline.api_version`)
     - `apipipeline.correlation_id.processed` – correlation IDs processed
-    - `apipipeline.security_headers.applied` – responses with security headers
     - `apipipeline.exceptions.handled` – exceptions caught by the pipeline handler
+    - `apipipeline.cors.rejected` – CORS requests rejected (disallowed origin)
+    - `apipipeline.request.body_bytes` – histogram of incoming request body size (bytes)
+  - **Why the second call matters:** the OpenTelemetry SDK is opt-in *by source name*. `AddObservability()` lays the export pipeline (and watches ASP.NET Core, `HttpClient`, runtime), but signals from ApiPipeline.NET's `ActivitySource`/`Meter` are dropped unless that source is registered. `AddApiPipelineTelemetrySources()` adds `ApiPipeline.NET` to the watch list — connecting the pipeline's faucet to the pipe `AddObservability()` built. Skip it and pipeline telemetry exists in-process but never reaches your backend (rate-limit dashboards read zero, traces miss `correlation_id`).
+  - For a full walkthrough — how the SDK's name-based opt-in works, an end-to-end rate-limit scenario, the complete trace tag / metric reference, and backend setup — see [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
   - In Kubernetes, export traces and metrics to a backend (e.g. Grafana Tempo, Jaeger, Azure Monitor, Prometheus) for cross-service correlation.
 - **Health endpoints**:
   - `/health` is excluded from compression by default; map readiness and liveness endpoints for probes.
@@ -588,6 +598,7 @@ ApiPipeline.NET remains agnostic here so you can adopt the resilience stack that
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and PR guidelines
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — pipeline design and middleware ordering
 - [docs/INTERNALS.md](docs/INTERNALS.md) — implementation details and extension points
+- [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md) — OpenTelemetry wiring, telemetry export model, trace/metric reference
 - [docs/OPERATIONS.md](docs/OPERATIONS.md) — production deployment and monitoring
 - [docs/RUNBOOK.md](docs/RUNBOOK.md) — incident response procedures
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common issues and diagnostics
