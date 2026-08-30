@@ -1,0 +1,25 @@
+<Project>
+  <!--
+    Shared by every ApiPipeline.NET package: the version, XML documentation, the analyzer level, and source (the Add* idempotency
+    claims, the startup-check host, duration and enum checks). The source is compiled into each package as
+    internal types, so packages share the code without any of them exposing it as public API or
+    seeing another's internals. Imported by each package's project.
+  -->
+  <PropertyGroup>
+    <!-- The version of every package. One release tag (vX.Y.Z) publishes them all, so they move
+         together; scripts/check-api-baseline.py and the release workflow read it here. -->
+    <Version>2.0.0</Version>
+
+    <!-- The XML documentation file ships in each package for IntelliSense. Tests, samples and
+         benchmarks do not ship, so they do not generate one. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- The shipped packages build with the .NET analyzers' recommended rule set (warnings are
+         errors, see Directory.Build.props). Tests, samples and benchmarks keep the default. -->
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)*.cs" LinkBase="Shared" />
+    <Using Include="ApiPipeline.NET.Shared" />
+  </ItemGroup>
+</Project>

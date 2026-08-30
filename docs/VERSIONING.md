@@ -1,54 +1,36 @@
 # Versioning and Compatibility Policy
 
-This document defines versioning expectations for `ApiPipeline.NET`.
+The three packages follow [Semantic Versioning](https://semver.org/) and ship together under one
+version (`src/Shared/Shared.props`). Use the same version of each.
 
-## Semantic versioning
+- **MAJOR**: you may need to change code or configuration.
+- **MINOR**: new features and options with defaults that keep current behaviour.
+- **PATCH**: fixes only.
 
-`ApiPipeline.NET` follows [Semantic Versioning](https://semver.org/):
+Within a major version, valid configuration stays valid, except that validation may get stricter to
+block unsafe or ambiguous settings (the error says what to change). Package validation compares
+each package's public API with the previous release on every build.
 
-- **MAJOR** (`X.y.z`): breaking changes to public APIs, option contracts, middleware behavior, or defaults that require user action.
-- **MINOR** (`x.Y.z`): backward-compatible features and additive configuration.
-- **PATCH** (`x.y.Z`): bug fixes and internal improvements only.
+## Supported versions
 
-## Compatibility guarantees
+| Version | Target framework | Status |
+| --- | --- | --- |
+| 2.x | `net10.0` | Current; adds `ApiPipeline.NET.RateLimiting.Redis` |
+| 1.x | `net10.0` | Superseded; fixes only in 2.x |
 
-- Within a major line, existing valid configuration remains valid unless it was previously unsafe or ambiguous.
-- New options are additive and have safe defaults.
-- Startup validation may tighten to block clearly incorrect or insecure configurations.
-- Option class property additions are non-breaking (new properties use defaults).
+The Redis package supports Redis 5.0+. Raising that floor, or changing the key format or script
+semantics (pods mid-rollout would count separately), is a major change.
 
-## Runtime support matrix
+## Deprecation
 
-| ApiPipeline.NET | Target Framework | ASP.NET Core | Status |
-|---|---|---|---|
-| 1.x | `net10.0` | 10.x | Current |
+An API or option is first marked `[Obsolete]` naming its replacement, documented in the
+[migration guide](migration.md), and removed only in the next major version. 2.0.0 removed some 1.x
+APIs without this step; the migration guide lists each.
 
-Future major versions may adjust target frameworks in alignment with the [.NET support lifecycle](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
+## Upgrading
 
-## Deprecation policy
-
-When APIs or options are scheduled for removal:
-
-1. Mark as `[Obsolete]` with a descriptive message and document as deprecated.
-2. Provide migration guidance in [migration.md](migration.md).
-3. Remove only in a later **major** release.
-
-Example:
-
-```csharp
-[Obsolete("Use PreferOutputCaching instead. Will be removed in 2.0.")]
-public bool UseLegacyCaching { get; set; }
-```
-
-## Upgrade guidance
-
-| Upgrade type | Risk | Action |
-|---|---|---|
-| **Patch** (`1.0.0` → `1.0.1`) | Low | Run existing tests. |
-| **Minor** (`1.0.x` → `1.1.0`) | Low–medium | Review release notes for new optional features. Run tests. |
-| **Major** (`1.x` → `2.0.0`) | High | Follow [migration.md](migration.md). Staged rollout recommended. |
-
-## Related
-
-- [CHANGELOG.md](../CHANGELOG.md) — version history and release notes.
-- [migration.md](migration.md) — step-by-step upgrade instructions.
+| Upgrade | What to do |
+| --- | --- |
+| Patch | Run your tests |
+| Minor | Read the [CHANGELOG](../CHANGELOG.md), run your tests |
+| Major | Follow the [migration guide](migration.md); roll out in stages |

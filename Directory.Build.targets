@@ -1,0 +1,95 @@
+<Project>
+
+  <!--
+    API compatibility validation, always on. Here rather than in .props so IsPackable is known and
+    a project's own ApiCompatBaselineVersion wins.
+
+    Intended breaks go in the project's CompatibilitySuppressions.xml; regenerate with:
+        dotnet pack <project> -c Release -p:GenerateCompatibilitySuppressionFile=true
+
+    The baseline is the previous release, and moves forward with every release: a break is caught
+    only against the version compared with, so a baseline left at 1.1.0 for all of 2.x would let an
+    API added in 2.0 be removed in 2.1. scripts/check-api-baseline.py fails CI and the release
+    unless ApiCompatBaselineVersion is the newest release tag below the version being built.
+
+    A package with no release yet sets ApiCompatFirstVersion (its first release) in its project;
+    the comparison is skipped while the baseline is older and starts by itself once it is not.
+
+    Local override: SkipApiCompatBaseline=true skips only the baseline comparison (unreachable
+    feed). CI never skips.
+  -->
+  <!-- Package metadata every ApiPipeline.NET package shares. Each project keeps its own PackageId,
+       Version, Description, PackageTags and README (a short one: the package page cannot resolve
+       the repository's relative links, so package READMEs link to GitHub absolutely). -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <Authors>BAPS Dev Team</Authors>
+    <Company>BAPS</Company>
+    <Copyright>Copyright (c) 2026 baps-apps. All rights reserved.</Copyright>
+    <!-- Proprietary, internal use only: no SPDX expression applies, so the LICENSE file ships in
+         each package and the package page links to it. -->
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- The CHANGELOG as of this version's tag, so the link keeps pointing at what shipped. -->
+    <PackageReleaseNotes>Release notes: https://github.com/baps-apps/apipipeline-net/blob/v$(Version)/CHANGELOG.md</PackageReleaseNotes>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)src/icon.png" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildProjectDirectory)/README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <EnablePackageValidation>true</EnablePackageValidation>
+
+    <!-- The previous release (tag v1.1.0). Move it forward right after tagging a release. -->
+    <ApiCompatBaselineVersion Condition="'$(ApiCompatBaselineVersion)' == ''">1.1.0</ApiCompatBaselineVersion>
+    <SkipApiCompatBaseline Condition="'$(SkipApiCompatBaseline)' == '' and '$(ApiCompatFirstVersion)' != '' and $([MSBuild]::VersionLessThan('$(ApiCompatBaselineVersion)', '$(ApiCompatFirstVersion)'))">true</SkipApiCompatBaseline>
+    <PackageValidationBaselineVersion Condition="'$(SkipApiCompatBaseline)' != 'true'">$(ApiCompatBaselineVersion)</PackageValidationBaselineVersion>
+  </PropertyGroup>
+
+  <!--
+    Versioning 1.x depends on ApiPipeline.NET; 2.x does not. Package validation resolves the
+    baseline's references from the current project's, so a 1.x baseline needs ApiPipeline.NET at
+    the same version (the packages release together) or its comparison runs on unresolved types.
+  -->
+  <PropertyGroup Condition="'$(PackageId)' == 'ApiPipeline.NET.Versioning' and '$(PackageValidationBaselineVersion)' != '' and $([MSBuild]::VersionLessThan('$(PackageValidationBaselineVersion)', '2.0.0'))">
+    <ApiPipelineBaselineCoreReference>$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'apipipeline.net', '$(PackageValidationBaselineVersion)', 'lib', '$(TargetFramework)', 'ApiPipeline.NET.dll'))</ApiPipelineBaselineCoreReference>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(ApiPipelineBaselineCoreReference)' != ''">
+    <PackageDownload Include="ApiPipeline.NET" Version="[$(PackageValidationBaselineVersion)]" />
+  </ItemGroup>
+  <Target Name="AddApiPipelineBaselineCoreReference"
+          AfterTargets="_GetReferencePathFromInnerProjects"
+          Condition="'$(ApiPipelineBaselineCoreReference)' != ''">
+    <Error Condition="!Exists('$(ApiPipelineBaselineCoreReference)')"
+           Text="Package validation needs ApiPipeline.NET $(PackageValidationBaselineVersion) for the $(PackageId) baseline, but $(ApiPipelineBaselineCoreReference) does not exist. Restore the project." />
+    <ItemGroup>
+      <PackageValidationReferencePath>
+        <ReferencePath>%(ReferencePath),$(ApiPipelineBaselineCoreReference)</ReferencePath>
+      </PackageValidationReferencePath>
+    </ItemGroup>
+  </Target>
+
+  <!--
+    The ILLink pack (trimming and Native AOT analyzers), pinned. IsAotCompatible makes the SDK add an
+    implicit Microsoft.NET.ILLink.Tasks reference at the version its own patch bundles (SDK 10.0.404
+    bundles 10.0.15), and the lock files record it. global.json rolls forward to the newest installed
+    patch, so unpinned, a machine whose SDK differs from the one that wrote the lock files fails a
+    locked restore with NU1004. Pinned here, the lock files hold 10.0.14 whichever SDK patch builds.
+
+    Not in Directory.Packages.props: the reference is implicit, and central package management
+    refuses a PackageVersion for an implicit reference (NU1009). Dependabot does not see this pin:
+    raise it with the SDK when a newer pack is wanted, then regenerate the lock files
+    (dotnet restore force-evaluate).
+  -->
+  <PropertyGroup>
+    <ApiPipelineILLinkPackVersion>10.0.14</ApiPipelineILLinkPackVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <KnownILLinkPack Update="Microsoft.NET.ILLink.Tasks" ILLinkPackVersion="$(ApiPipelineILLinkPackVersion)" />
+  </ItemGroup>
+
+</Project>

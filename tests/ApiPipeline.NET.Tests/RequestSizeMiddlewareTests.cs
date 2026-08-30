@@ -21,11 +21,11 @@ public sealed class RequestSizeMiddlewareTests
         await using var app = await TestAppBuilder.CreateAppAsync(TestAppBuilder.MinimalConfig());
         app.UseMiddleware<RequestSizeMiddleware>();
         app.MapPost("/data", () => Results.Ok("received"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var content = new StringContent("hello world", Encoding.UTF8, "application/json");
-        var response = await client.PostAsync("/data", content);
+        var response = await client.PostAsync("/data", content, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -39,10 +39,10 @@ public sealed class RequestSizeMiddlewareTests
         await using var app = await TestAppBuilder.CreateAppAsync(TestAppBuilder.MinimalConfig());
         app.UseMiddleware<RequestSizeMiddleware>();
         app.MapGet("/ping", () => Results.Ok("pong"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/ping");
+        var response = await client.GetAsync("/ping", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

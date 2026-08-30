@@ -1,0 +1,206 @@
+# Actions are pinned to full commit SHAs and kept current by Dependabot
+# (.github/dependabot.yml), which rewrites both the SHA and the trailing version comment.
+# A mutable tag is a write primitive for anyone who compromises an action repository;
+# a SHA is not.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read # restore from the private GitHub Packages feed
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-pack:
+    name: Build, test and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0 # Full history and tags: Source Link, and the API-compatibility baseline check.
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      # The private feed (CodeStyle.NET analyzer, API-compat baseline) needs credentials, and
+      # NuGet does not read NUGET_AUTH_TOKEN by itself. GITHUB_TOKEN can read another repository's
+      # package only when that package grants this repository access (package settings ->
+      # "Manage Actions access"). Fork PRs get no token and fail here.
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      - name: Restore
+        # Locked mode: fail if a dependency would resolve differently from packages.lock.json.
+        run: dotnet restore ApiPipeline.NET.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build ApiPipeline.NET.slnx -c Release --no-restore
+
+      # Microsoft.Testing.Platform (global.json): TRX and Cobertura coverage come from its extensions.
+      - name: Test
+        run: >
+          dotnet test --solution ApiPipeline.NET.slnx -c Release --no-build
+          --results-directory "${{ github.workspace }}/TestResults"
+          --report-trx --coverage --coverage-output-format cobertura
+
+      # Line coverage of the shipped assemblies only; thresholds sit a few points under the
+      # current figures (core 89%, Versioning 80%, Redis rate limiting 88%) so a real regression
+      # fails and churn does not. Each test project writes its own report, so the Redis package
+      # is checked against the report that contains it.
+      - name: Coverage gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          results="${{ github.workspace }}/TestResults"
+          core=$(grep -l 'name="ApiPipeline.NET.Versioning">' "$results"/*.cobertura.xml | head -n 1)
+          redis=$(grep -l 'name="ApiPipeline.NET.RateLimiting.Redis">' "$results"/*.cobertura.xml | head -n 1)
+          python3 -I scripts/check-coverage.py "$core" ApiPipeline.NET=85 ApiPipeline.NET.Versioning=75
+          python3 -I scripts/check-coverage.py "$redis" ApiPipeline.NET.RateLimiting.Redis=80
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results
+          path: ${{ github.workspace }}/TestResults/**
+
+      # The baseline must be the previous release (newest vX.Y.Z tag below each package's
+      # <Version>), and a released <Version> must be bumped before the package changes again. Needs
+      # the tags, which fetch-depth: 0 brings.
+      - name: API-compatibility baseline is the previous release
+        run: python3 -I scripts/check-api-baseline.py
+
+      # Fails on any public API break vs. the baseline in Directory.Build.targets that is not in
+      # CompatibilitySuppressions.xml. No override: CI always compares against the checked baseline.
+      - name: Pack (API compatibility validated against the baseline)
+        run: dotnet pack ApiPipeline.NET.slnx -c Release --no-build -o "${{ github.workspace }}/artifacts"
+
+      - name: Assert packages carry no private-feed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          for pkg in "${{ github.workspace }}"/artifacts/*.nupkg; do
+            echo "== $(basename "$pkg")"
+            deps=$(unzip -p "$pkg" '*.nuspec' | grep -o 'id="[^"]*"' || true)
+            echo "$deps"
+            # CodeStyle.NET must stay PrivateAssets=all, or consumers need the private feed.
+            if echo "$deps" | grep -q 'CodeStyle.NET'; then
+              echo "::error::$(basename "$pkg") leaks CodeStyle.NET as a public dependency"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Upload packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nupkg
+          path: ${{ github.workspace }}/artifacts/*.nupkg
+
+  markdown:
+    name: Docs and scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      # Links and heading fragments between documents.
+      - name: Check links
+        run: python3 -I scripts/check-doc-links.py
+
+      # Unit tests of the gate scripts (source mapping, allocation, timing, load summaries), so a
+      # broken gate fails here instead of silently passing in the Performance workflow.
+      - name: Gate script tests
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
+      # The package IDs have no company prefix and are not reserved on nuget.org: only source
+      # mapping keeps them on the private feed. Every shipped ID must resolve to that feed alone in
+      # every committed nuget.config and in the setup the docs tell consumers to copy.
+      - name: Package source mapping covers every shipped package
+        run: python3 -I scripts/check-source-mapping.py
+
+  native-aot:
+    name: Native AOT publish and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      # The AOT compiler links with the platform toolchain.
+      - name: Install native toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+
+      # Every package is published into one Native AOT app: any trimming or AOT warning (IL2xxx,
+      # IL3xxx), from this code or a dependency such as Asp.Versioning or StackExchange.Redis,
+      # fails the publish. The native binary is then run: its headers, a 429, and a limit shared by
+      # two instances through Redis (Docker, which the runner has) are checked.
+      - name: Publish and run
+        run: scripts/aot-smoke.sh "${{ github.workspace }}/artifacts/aot-smoke"
+
+  vulnerability-scan:
+    name: Vulnerable and deprecated packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      # The private feed (CodeStyle.NET analyzer, API-compat baseline) needs credentials, and
+      # NuGet does not read NUGET_AUTH_TOKEN by itself. GITHUB_TOKEN can read another repository's
+      # package only when that package grants this repository access (package settings ->
+      # "Manage Actions access"). Fork PRs get no token and fail here.
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+      - name: Restore
+        # Locked mode: fail if a dependency would resolve differently from packages.lock.json.
+        run: dotnet restore ApiPipeline.NET.slnx --locked-mode
+      - name: Fail on vulnerable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(dotnet list ApiPipeline.NET.slnx package --vulnerable --include-transitive)
+          echo "$output"
+          if echo "$output" | grep -qi "has the following vulnerable packages"; then
+            echo "::error::Vulnerable packages detected"
+            exit 1
+          fi
+      - name: Report deprecated packages
+        continue-on-error: true
+        run: dotnet list ApiPipeline.NET.slnx package --deprecated --include-transitive

@@ -1,5 +1,5 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 
@@ -18,15 +18,15 @@ public sealed class OutputCachingTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["OutputCachingOptions:Enabled"] = "true";
+            c["ApiPipeline:OutputCaching:Enabled"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseOutputCaching();
+        app.UseApiPipeline(pipeline => pipeline.WithOutputCaching());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -39,27 +39,27 @@ public sealed class OutputCachingTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["OutputCachingOptions:Enabled"] = "false";
+            c["ApiPipeline:OutputCaching:Enabled"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseOutputCaching();
+        app.UseApiPipeline(pipeline => pipeline.WithOutputCaching());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     /// <summary>
-    /// Verifies that <see cref="ApiPipeline.NET.Options.OutputCachingSettings.Enabled"/>
-    /// defaults to <c>false</c> (opt-in migration).
+    /// Verifies that <see cref="ApiPipelineOutputCachingOptions.Enabled"/>
+    /// defaults to <c>false</c>.
     /// </summary>
     [Fact]
     public void OutputCachingSettings_Enabled_DefaultIs_False()
     {
-        var settings = new ApiPipeline.NET.Options.OutputCachingSettings();
+        var settings = new ApiPipelineOutputCachingOptions();
         settings.Enabled.Should().BeFalse();
     }
 
@@ -71,17 +71,17 @@ public sealed class OutputCachingTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["OutputCachingOptions:Enabled"] = "true";
+            c["ApiPipeline:OutputCaching:Enabled"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.UseApiPipeline(pipeline => pipeline
             .WithCorrelationId()
             .WithOutputCaching());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

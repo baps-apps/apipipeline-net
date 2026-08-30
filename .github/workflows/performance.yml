@@ -1,0 +1,169 @@
+# Actions are pinned to full commit SHAs and kept current by Dependabot.
+name: Performance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  allocations:
+    name: Allocation regression gate
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      - name: Restore (locked)
+        run: dotnet restore perf/ApiPipeline.NET.Perf/ApiPipeline.NET.Perf.csproj --locked-mode
+
+      - name: Build
+        run: dotnet build perf/ApiPipeline.NET.Perf/ApiPipeline.NET.Perf.csproj -c Release --no-restore
+
+      - name: Run complete Short suite
+        run: >
+          dotnet run -c Release --no-build --project perf/ApiPipeline.NET.Perf --
+          --filter '*' --job Short
+          --artifacts "${{ runner.temp }}/benchmark-allocations"
+
+      - name: Gate managed allocations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I scripts/check-benchmark-allocations.py \
+            "${{ runner.temp }}/benchmark-allocations/results" \
+            perf/ApiPipeline.NET.Perf/allocations-baseline.json \
+            | tee "${{ runner.temp }}/benchmark-allocations/allocation-gate.txt"
+
+      - name: Upload allocation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-allocations
+          path: ${{ runner.temp }}/benchmark-allocations/**
+          if-no-files-found: error
+
+  repeated-timing:
+    name: Five-run timing evidence
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      - name: Restore (locked)
+        run: dotnet restore perf/ApiPipeline.NET.Perf/ApiPipeline.NET.Perf.csproj --locked-mode
+
+      - name: Run five default BenchmarkDotNet jobs
+        env:
+          APIPIPELINE_PERF_HOME: ${{ runner.temp }}/performance
+        run: scripts/run-performance.sh
+
+      - name: Add timing report to job summary
+        continue-on-error: true
+        shell: bash
+        run: |
+          candidate=("${{ runner.temp }}/performance/candidates/"*)
+          cat "${candidate[0]}/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload timing evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: benchmark-timing
+          path: ${{ runner.temp }}/performance/**
+          if-no-files-found: error
+
+  endpoint-load:
+    name: Endpoint throughput and percentiles
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      - name: Restore (locked)
+        run: dotnet restore perf/ApiPipeline.NET.LoadTests/ApiPipeline.NET.LoadTests.csproj --locked-mode
+
+      - name: Run canonical endpoint campaign
+        env:
+          APIPIPELINE_LOAD_HOME: ${{ runner.temp }}/load
+        run: scripts/run-load-tests.sh
+
+      - name: Add load report to job summary
+        if: always()
+        shell: bash
+        run: |
+          report=("${{ runner.temp }}/load/"*/load-summary.md)
+          if [[ -f "${report[0]}" ]]; then
+            cat "${report[0]}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload endpoint evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: endpoint-load
+          path: ${{ runner.temp }}/load/**
+          if-no-files-found: error

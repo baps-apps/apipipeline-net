@@ -1,3 +1,12 @@
+using ApiPipeline.NET.Perf;
 using BenchmarkDotNet.Running;
 
-BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+if (args is ["--runtime-version"])
+{
+    Console.WriteLine(Environment.Version);
+    return;
+}
+
+await RedisBenchmarkEnvironment.RunAsync(
+    args,
+    benchmarkArgs => BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(benchmarkArgs));

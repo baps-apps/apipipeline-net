@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "sourceEnvironment": "test fixture",
+  "runtime": ".NET 10",
+  "rows": {
+    "Bench.Run": {
+      "acceptedBytes": 1000,
+      "maximumBytes": 1064
+    }
+  }
+}

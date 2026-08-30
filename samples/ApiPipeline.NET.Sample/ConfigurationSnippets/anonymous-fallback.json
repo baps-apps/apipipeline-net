@@ -1,18 +1,19 @@
 {
-  "RateLimitingOptions": {
-    "Enabled": true,
-    "DefaultPolicy": "strict",
-    "AnonymousFallback": "Reject",
-    "Policies": [
-      {
-        "Name": "strict",
-        "Kind": "FixedWindow",
-        "PermitLimit": 20,
-        "WindowSeconds": 60,
-        "QueueLimit": 0,
-        "QueueProcessingOrder": "OldestFirst",
-        "AutoReplenishment": true
-      }
-    ]
+  "ApiPipeline": {
+    "RateLimiting": {
+      "Enabled": true,
+      "DefaultPolicy": "strict",
+      "AnonymousFallback": "Reject",
+      "Policies": [
+        {
+          "Name": "strict",
+          "Kind": "FixedWindow",
+          "PermitLimit": 20,
+          "Window": "00:01:00",
+          "QueueLimit": 0,
+          "QueueProcessingOrder": "OldestFirst"
+        }
+      ]
+    }
   }
 }

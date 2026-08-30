@@ -1,27 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Shared\Shared.props" />
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Trimming and Native AOT analyzers on: a base package for every API must not block AOT.
+         Configuration binding and options validation are source-generated (no reflection). -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
     <PackageId>ApiPipeline.NET.Versioning</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>BAPS Dev Team</Authors>
-    <Description>Asp.Versioning.Mvc integration for ApiPipeline.NET API version deprecation headers.</Description>
-    <PackageTags>aspnetcore;api;pipeline;versioning;deprecation;asp-versioning</PackageTags>
-    <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Already released, so package validation compares the public API against the shared
+         baseline (ApiCompatBaselineVersion in Directory.Build.targets). Intended breaks are listed
+         in CompatibilitySuppressions.xml. -->
+    <Description>Configuration-driven API version deprecation and sunset policies for ApiPipeline.NET, built on Asp.Versioning.</Description>
+    <PackageTags>aspnetcore;api;pipeline;versioning;deprecation;sunset;asp-versioning</PackageTags>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!-- Shared helpers this package does not use: duration and enum option checks. -->
+    <Compile Remove="..\Shared\DurationSettings.cs;..\Shared\EnumValue.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
-    <PackageReference Include="Asp.Versioning.Mvc" />
-    <PackageReference Include="CodeStyle.NET" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Asp.Versioning.Http" />
+    <PackageReference Include="CodeStyle.NET" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 </Project>

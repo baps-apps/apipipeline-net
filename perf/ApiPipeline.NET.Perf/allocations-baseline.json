@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "sourceEnvironment": "Linux x64 (Docker linux/amd64 on Apple M4, Rosetta); Docker Desktop 29.9.3",
+  "runtime": ".NET 10.0.15; SDK 10.0.404",
+  "rows": {
+    "ConcurrentPipelineBenchmarks.FullPipeline_Concurrent[Concurrency=1]": {
+      "acceptedBytes": 3072.0,
+      "maximumBytes": 3226
+    },
+    "ConcurrentPipelineBenchmarks.FullPipeline_Concurrent[Concurrency=64]": {
+      "acceptedBytes": 188661.76,
+      "maximumBytes": 198095
+    },
+    "ConcurrentPipelineBenchmarks.FullPipeline_Concurrent[Concurrency=8]": {
+      "acceptedBytes": 23767.04,
+      "maximumBytes": 24956
+    },
+    "CorsGetBenchmarks.Baseline_RoutedGet": {
+      "acceptedBytes": 1454.08,
+      "maximumBytes": 1527
+    },
+    "CorsGetBenchmarks.Cors_AllowedGet": {
+      "acceptedBytes": 2652.16,
+      "maximumBytes": 2785
+    },
+    "CorsPreflightBenchmarks.Baseline_OptionsRequest": {
+      "acceptedBytes": 1454.08,
+      "maximumBytes": 1527
+    },
+    "CorsPreflightBenchmarks.Cors_PreflightShortCircuit": {
+      "acceptedBytes": 2990.08,
+      "maximumBytes": 3140
+    },
+    "EdgeRateLimitingAllowedBenchmarks.Baseline_AllowedRequest": {
+      "acceptedBytes": 1556.48,
+      "maximumBytes": 1635
+    },
+    "EdgeRateLimitingAllowedBenchmarks.EdgeRateLimiter_Allowed": {
+      "acceptedBytes": 1802.24,
+      "maximumBytes": 1893
+    },
+    "EdgeRateLimitingRejectedBenchmarks.Baseline_UnlimitedRequest": {
+      "acceptedBytes": 1556.48,
+      "maximumBytes": 1635
+    },
+    "EdgeRateLimitingRejectedBenchmarks.EdgeRateLimiter_Rejected": {
+      "acceptedBytes": 3092.48,
+      "maximumBytes": 3248
+    },
+    "ForwardedHeadersAppliedBenchmarks.Baseline_Headers_NoMiddleware": {
+      "acceptedBytes": 1556.48,
+      "maximumBytes": 1635
+    },
+    "ForwardedHeadersAppliedBenchmarks.ForwardedHeaders_Applied": {
+      "acceptedBytes": 2119.68,
+      "maximumBytes": 2226
+    },
+    "ForwardedHeadersBenchmarks.Baseline_NoMiddleware": {
+      "acceptedBytes": 1556.48,
+      "maximumBytes": 1635
+    },
+    "ForwardedHeadersBenchmarks.ForwardedHeaders_NoHeaders": {
+      "acceptedBytes": 1617.92,
+      "maximumBytes": 1699
+    },
+    "MiddlewareBenchmarks.CorrelationIdAndSecurityHeaders": {
+      "acceptedBytes": 1607.68,
+      "maximumBytes": 1689
+    },
+    "MiddlewareBenchmarks.CorrelationId_IdGenerated": {
+      "acceptedBytes": 1484.8,
+      "maximumBytes": 1560
+    },
+    "MiddlewareBenchmarks.CorrelationId_InboundIdAccepted": {
+      "acceptedBytes": 1607.68,
+      "maximumBytes": 1689
+    },
+    "MiddlewareBenchmarks.EmptyPipeline": {
+      "acceptedBytes": 1024.0,
+      "maximumBytes": 1088
+    },
+    "MiddlewareBenchmarks.EmptyPipeline_SuspendingTerminal": {
+      "acceptedBytes": 1116.16,
+      "maximumBytes": 1181
+    },
+    "MiddlewareBenchmarks.RequestSizeTracking": {
+      "acceptedBytes": 1269.76,
+      "maximumBytes": 1334
+    },
+    "MiddlewareBenchmarks.RequestSizeTracking_SuspendingTerminal": {
+      "acceptedBytes": 1372.16,
+      "maximumBytes": 1441
+    },
+    "MiddlewareBenchmarks.SecurityHeaders": {
+      "acceptedBytes": 1024.0,
+      "maximumBytes": 1088
+    },
+    "MiddlewareBenchmarks.SecurityHeaders_SuspendingTerminal": {
+      "acceptedBytes": 1116.16,
+      "maximumBytes": 1181
+    },
+    "OutputCachingAllocationBenchmarks.DefaultStoreMiss[PayloadSize=1024]": {
+      "acceptedBytes": 87531.52,
+      "maximumBytes": 91909,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.DefaultStoreMiss[PayloadSize=23]": {
+      "acceptedBytes": 86538.24,
+      "maximumBytes": 90866,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.DefaultStoreMiss[PayloadSize=65536]": {
+      "acceptedBytes": 152043.52,
+      "maximumBytes": 159646,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.InstrumentedStoreMiss[PayloadSize=1024]": {
+      "acceptedBytes": 87285.76,
+      "maximumBytes": 91651,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row using a non-retaining store; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.InstrumentedStoreMiss[PayloadSize=23]": {
+      "acceptedBytes": 86292.48,
+      "maximumBytes": 90608,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row using a non-retaining store; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.InstrumentedStoreMiss[PayloadSize=65536]": {
+      "acceptedBytes": 151797.76,
+      "maximumBytes": 159388,
+      "reason": "Diagnostic ASP.NET Core output-cache capture/serialization row using a non-retaining store; see docs/performance.md."
+    },
+    "OutputCachingAllocationBenchmarks.NonCacheable[PayloadSize=1024]": {
+      "acceptedBytes": 3522.56,
+      "maximumBytes": 3699
+    },
+    "OutputCachingAllocationBenchmarks.NonCacheable[PayloadSize=23]": {
+      "acceptedBytes": 3522.56,
+      "maximumBytes": 3699
+    },
+    "OutputCachingAllocationBenchmarks.NonCacheable[PayloadSize=65536]": {
+      "acceptedBytes": 3522.56,
+      "maximumBytes": 3699
+    },
+    "OutputCachingHitBenchmarks.Baseline_HitHarness": {
+      "acceptedBytes": 2129.92,
+      "maximumBytes": 2237
+    },
+    "OutputCachingHitBenchmarks.Cache_Hit": {
+      "acceptedBytes": 4096.0,
+      "maximumBytes": 4301
+    },
+    "OutputCachingMissBenchmarks.Baseline_MissHarness": {
+      "acceptedBytes": 2129.92,
+      "maximumBytes": 2237
+    },
+    "OutputCachingMissBenchmarks.Cache_Miss": {
+      "acceptedBytes": 86896.64,
+      "maximumBytes": 91242,
+      "reason": "ASP.NET Core output-cache miss capture/default-store allocation under framework investigation; see docs/performance.md."
+    },
+    "RateLimitPartitionBenchmarks.ApiKeyPartitionKey": {
+      "acceptedBytes": 224.0,
+      "maximumBytes": 288
+    },
+    "RateLimitPartitionBenchmarks.IpPartitionKeyV4": {
+      "acceptedBytes": 88.0,
+      "maximumBytes": 152
+    },
+    "RateLimitPartitionBenchmarks.IpPartitionKeyV6": {
+      "acceptedBytes": 232.0,
+      "maximumBytes": 296
+    },
+    "RateLimiterPipelineBenchmarks.RateLimiter_LeaseAcquired": {
+      "acceptedBytes": 2252.8,
+      "maximumBytes": 2366
+    },
+    "RedisAllowedBenchmarks.Baseline_Request": {
+      "acceptedBytes": 1699.84,
+      "maximumBytes": 1785
+    },
+    "RedisAllowedBenchmarks.Redis_Concurrency": {
+      "acceptedBytes": 6615.04,
+      "maximumBytes": 6946
+    },
+    "RedisAllowedBenchmarks.Redis_FixedWindow": {
+      "acceptedBytes": 5478.4,
+      "maximumBytes": 5753
+    },
+    "RedisAllowedBenchmarks.Redis_GlobalPlusDefault": {
+      "acceptedBytes": 7649.28,
+      "maximumBytes": 8032
+    },
+    "RedisAllowedBenchmarks.Redis_SlidingWindow": {
+      "acceptedBytes": 5498.88,
+      "maximumBytes": 5774
+    },
+    "RedisAllowedBenchmarks.Redis_TokenBucket": {
+      "acceptedBytes": 5498.88,
+      "maximumBytes": 5774
+    },
+    "RedisCachedRejectionBenchmarks.Baseline_UnlimitedRequest": {
+      "acceptedBytes": 1699.84,
+      "maximumBytes": 1785
+    },
+    "RedisCachedRejectionBenchmarks.Redis_LocallyCachedRejection": {
+      "acceptedBytes": 5212.16,
+      "maximumBytes": 5473
+    },
+    "RedisCircuitOpenBenchmarks.Baseline_UnlimitedRequest": {
+      "acceptedBytes": 1699.84,
+      "maximumBytes": 1785
+    },
+    "RedisCircuitOpenBenchmarks.Redis_CircuitOpen_PerPodFallback": {
+      "acceptedBytes": 3143.68,
+      "maximumBytes": 3301
+    },
+    "RedisCircuitOpenBenchmarks.Redis_CircuitOpen_PerPodFallback_Concurrent": {
+      "acceptedBytes": 216084.48,
+      "maximumBytes": 226889
+    },
+    "RedisServerRejectionBenchmarks.Baseline_UnlimitedRequest": {
+      "acceptedBytes": 1699.84,
+      "maximumBytes": 1785
+    },
+    "RedisServerRejectionBenchmarks.Redis_ServerRejected": {
+      "acceptedBytes": 7311.36,
+      "maximumBytes": 7677
+    },
+    "RedisUnavailableRejectBenchmarks.Baseline_UnlimitedRequest": {
+      "acceptedBytes": 1699.84,
+      "maximumBytes": 1785
+    },
+    "RedisUnavailableRejectBenchmarks.Redis_Unavailable_FailClosed": {
+      "acceptedBytes": 22231.04,
+      "maximumBytes": 32768,
+      "reason": "Allocation is measured process-wide, and StackExchange.Redis reconnects to the unreachable endpoint in the background during each ~0.8 s iteration (8.1 to 24.6 KB per request observed); the ceiling catches order-of-magnitude regressions only. See docs/performance.md."
+    },
+    "RequestLimitsStartupBenchmarks.Baseline_FrameworkOptions": {
+      "acceptedBytes": 9297.92,
+      "maximumBytes": 9763
+    },
+    "RequestLimitsStartupBenchmarks.Package_RequestLimits": {
+      "acceptedBytes": 36300.8,
+      "maximumBytes": 40960,
+      "reason": "Once per process, not per request. Measured process-wide during host startup, so it varies with architecture and background work (35.4 KB Linux x64, 37.4 to 38.3 KB macOS Arm64 observed); the ceiling covers both. See docs/performance.md."
+    },
+    "RequestTimeoutBenchmarks.Baseline_NoTimeoutFeature": {
+      "acceptedBytes": 1454.08,
+      "maximumBytes": 1527
+    },
+    "RequestTimeoutBenchmarks.RequestTimeout_Enabled": {
+      "acceptedBytes": 2007.04,
+      "maximumBytes": 2108
+    },
+    "ResponseCachingHitBenchmarks.Baseline_HitHarness": {
+      "acceptedBytes": 2099.2,
+      "maximumBytes": 2205
+    },
+    "ResponseCachingHitBenchmarks.Cache_Hit": {
+      "acceptedBytes": 2795.52,
+      "maximumBytes": 2936
+    },
+    "ResponseCachingMissBenchmarks.Baseline_MissHarness": {
+      "acceptedBytes": 2099.2,
+      "maximumBytes": 2205
+    },
+    "ResponseCachingMissBenchmarks.Cache_Miss": {
+      "acceptedBytes": 4352.0,
+      "maximumBytes": 4570
+    },
+    "ResponseCompressionBenchmarks.Baseline_Uncompressed4KB": {
+      "acceptedBytes": 1720.32,
+      "maximumBytes": 1807
+    },
+    "ResponseCompressionBenchmarks.Gzip_4KB": {
+      "acceptedBytes": 2508.8,
+      "maximumBytes": 2635
+    },
+    "VersionDeprecationStartupBenchmarks.Baseline_AspVersioning": {
+      "acceptedBytes": 22835.2,
+      "maximumBytes": 23977
+    },
+    "VersionDeprecationStartupBenchmarks.Package_DeprecationPolicies": {
+      "acceptedBytes": 43622.4,
+      "maximumBytes": 49152,
+      "reason": "Once per process, not per request. Measured process-wide during host startup, so it varies with architecture and background work (42.6 KB Linux x64, 43.4 to 44.4 KB macOS Arm64 observed); the ceiling covers both. See docs/performance.md."
+    }
+  }
+}

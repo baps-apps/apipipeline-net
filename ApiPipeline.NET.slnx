@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/perf/">
+    <Project Path="perf/ApiPipeline.NET.LoadTests/ApiPipeline.NET.LoadTests.csproj" />
     <Project Path="perf/ApiPipeline.NET.Perf/ApiPipeline.NET.Perf.csproj" />
   </Folder>
   <Folder Name="/samples/">
@@ -7,11 +8,12 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ApiPipeline.NET/ApiPipeline.NET.csproj" />
-    <Project Path="src/ApiPipeline.NET.OpenTelemetry/ApiPipeline.NET.OpenTelemetry.csproj" />
 
+    <Project Path="src/ApiPipeline.NET.RateLimiting.Redis/ApiPipeline.NET.RateLimiting.Redis.csproj" />
     <Project Path="src/ApiPipeline.NET.Versioning/ApiPipeline.NET.Versioning.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ApiPipeline.NET.RateLimiting.Redis.Tests/ApiPipeline.NET.RateLimiting.Redis.Tests.csproj" />
     <Project Path="tests/ApiPipeline.NET.Tests/ApiPipeline.NET.Tests.csproj" />
   </Folder>
 </Solution>

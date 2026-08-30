@@ -1,224 +1,75 @@
-# ApiPipeline.NET Operations Guide
+# Operations Guide
 
-Operational guidance for running services that use `ApiPipeline.NET` in production.
+Running a service that uses `ApiPipeline.NET` in Kubernetes. Alerts: [runbook](RUNBOOK.md).
+Problems: [troubleshooting](TROUBLESHOOTING.md).
 
-## Runtime configuration
+## Production settings
 
-- Most behavior is controlled through `appsettings.*.json` (or equivalent config providers).
-- Changes to options generally require app restart unless your host supports hot reload and your service lifecycle picks up new values.
-- Treat proxy trust settings and rate limiting policy changes as **high-impact** operations — test in staging first.
+Start from the README's [configuration](../README.md#configuration) and
+[checklist](../README.md#production-checklist). In Kubernetes also:
 
-## Recommended production baseline
+- **Trust only the ingress**: its own addresses as the pod sees them, not the pod CIDR.
+- **Limits are per pod**, so totals move with the HPA. Enforce global limits at the ingress or use
+  Redis.
+- **Redis**: same zone as the pods, `maxmemory-policy noeviction`, a `KeyPrefix` per API and
+  environment, `PartitionKeySecret` from a secret store, sized for
+  [calls per request](features/rate-limiting.md#load-on-redis). `PolicyFallbacks: Reject` for every
+  abuse-sensitive policy (login, OTP, payments): the default `PerPod` allows N× the limit while
+  Redis is down ([choosing](features/rate-limiting.md#when-redis-is-unavailable)).
+- **Match the ingress**: `MaxRequestBodySize` ≤ its body limit, `DefaultTimeout` < its timeout.
+- **Compression behind TLS termination** needs `EnableForHttps`, or let the ingress compress.
 
-### Forwarded headers (required behind proxy/ingress)
+## Changing configuration
 
-```json
-{
-  "ForwardedHeadersOptions": {
-    "Enabled": true,
-    "ForwardLimit": 2,
-    "KnownProxies": [],
-    "KnownNetworks": ["10.0.0.0/8"],
-    "ClearDefaultProxies": true,
-    "EnforceTrustedProxyConfigurationInProduction": true,
-    "SuppressServerHeader": true
-  }
-}
-```
+Settings are read at startup: edit the ConfigMap, then `kubectl rollout restart`. An invalid value
+fails the new pods before they serve, so the rollout stalls while old pods keep serving. Test
+proxy trust, rate limits and `PartitionKeySecret` (which resets buckets) in staging first.
 
-Without `ClearDefaultProxies: true` and a configured `KnownNetworks` or `KnownProxies`, `X-Forwarded-For` headers are ignored and all traffic shares the proxy's IP. This collapses rate limiting to a single bucket.
+## Health checks
 
-### CORS
-
-```json
-{
-  "CorsOptions": {
-    "Enabled": true,
-    "AllowAllInDevelopment": false,
-    "AllowedOrigins": ["https://app.example.com"],
-    "AllowedMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    "AllowedHeaders": ["Content-Type", "Authorization", "X-Correlation-Id"],
-    "AllowCredentials": true
-  }
-}
-```
-
-Never use wildcard origins in production. When `AllowCredentials` is `true`, explicit origins are required (CORS spec).
-
-### Rate limiting
-
-```json
-{
-  "RateLimitingOptions": {
-    "Enabled": true,
-    "AnonymousFallback": "Reject",
-    "DefaultPolicy": "per-user",
-    "Policies": [
-      {
-        "Name": "per-user",
-        "Kind": "FixedWindow",
-        "PermitLimit": 100,
-        "WindowSeconds": 60,
-        "QueueLimit": 0,
-        "QueueProcessingOrder": "OldestFirst",
-        "AutoReplenishment": true
-      }
-    ]
-  }
-}
-```
-
-Use `AnonymousFallback: "Reject"` in production. The `"RateLimit"` fallback uses a shared anonymous bucket vulnerable to single-client exhaustion.
-
-### Request limits
-
-```json
-{
-  "RequestLimitsOptions": {
-    "Enabled": true,
-    "MaxRequestBodySize": 10485760,
-    "MaxRequestHeadersTotalSize": 32768,
-    "MaxRequestHeaderCount": 100,
-    "MaxFormValueCount": 1024
-  }
-}
-```
-
-Set `MaxRequestBodySize` to match your API contract. Kestrel's default is ~30 MB; 10 MB (10485760) is a safer production baseline for most APIs.
-
-### Security headers
-
-```json
-{
-  "SecurityHeadersOptions": {
-    "Enabled": true,
-    "ReferrerPolicy": "no-referrer",
-    "AddXContentTypeOptionsNoSniff": true,
-    "EnableStrictTransportSecurity": true,
-    "StrictTransportSecurityMaxAgeSeconds": 31536000,
-    "StrictTransportSecurityIncludeSubDomains": true,
-    "StrictTransportSecurityPreload": false,
-    "AddXFrameOptions": true,
-    "XFrameOptionsValue": "DENY",
-    "ContentSecurityPolicy": null,
-    "PermissionsPolicy": null
-  }
-}
-```
-
-Set `ContentSecurityPolicy` and `PermissionsPolicy` when your API domain serves browser-rendered content (e.g., Swagger UI, portal pages).
-
-## Health check wiring
-
-Map health endpoints and exclude them from compression and caching:
-
-```csharp
-app.MapGet("/health", () => Results.Ok(new { Status = "Healthy" }));
-app.MapGet("/health/ready", () => Results.Ok());
-app.MapGet("/health/live", () => Results.Ok());
-```
-
-The default `ResponseCompressionOptions.ExcludedPaths` already includes `/health`.
-
-### Kubernetes probe configuration
+`/health` and `/internal/health`, and everything under them, are exempt from compression and, for
+`GET`/`HEAD` from `ProbeNetworks` without proxy headers, from both rate limiters
+([details](features/rate-limiting.md#health-probes)); not from request timeouts. A configured
+`ExcludedPaths` replaces the default. Keep probes cheap: they are never limited.
 
 ```yaml
-apiVersion: apps/v1
-kind: Deployment
-spec:
-  template:
-    spec:
-      containers:
-        - name: api
-          livenessProbe:
-            httpGet:
-              path: /health/live
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 15
-          readinessProbe:
-            httpGet:
-              path: /health/ready
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
+livenessProbe:
+  httpGet: { path: /health/live, port: 8080 }
+readinessProbe:
+  httpGet: { path: /health/ready, port: 8080 }
 ```
 
-## Metrics and observability
+## Monitoring
 
-With `ApiPipeline.NET.OpenTelemetry`, the following are exported:
+Export the meter ([OBSERVABILITY.md](OBSERVABILITY.md)). Responses are in the [runbook](RUNBOOK.md).
 
-| Signal | What to monitor |
-|---|---|
-| Traces | Request flow, middleware boundaries, cross-service correlation |
-| Metrics | Rate limit rejections, request sizes, security headers applied |
-| Logs | Correlated via `X-Correlation-Id` and `Activity.TraceId` |
+| Signal | Prometheus query | Alert |
+| --- | --- | --- |
+| Main limiter 429s | `rate(apipipeline_rate_limiting_rejected_total[5m])` | Sustained rise |
+| Edge limiter 429s | `rate(apipipeline_edge_rate_limiting_rejected_total[5m])` | Sudden spike |
+| Partition cap reached | `rate(apipipeline_rate_limiting_partitions_overflow_total[5m])` (and the edge counter) | `> 0` for 5 min |
+| Redis degraded | `max(apipipeline_rate_limiting_store_degraded)` | `== 1` for 5 min |
+| Redis latency | `histogram_quantile(0.99, sum by (le) (rate(apipipeline_rate_limiting_store_duration_seconds_bucket[5m])))` | > half of `CommandTimeout` |
+| Redis fallbacks | `sum by (apipipeline_rate_limiting_policy) (rate(apipipeline_rate_limiting_store_fallback_total[5m]))` | Dashboard; > 0 means per pod |
+| CORS rejections | `rate(apipipeline_cors_rejected_total[5m])` | Spike after a deploy |
+| Invalid correlation IDs | `rate(apipipeline_correlation_id_rejected_total[5m])` | Sustained |
+| 5xx | `rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])` | > 1% of traffic |
+| p95 latency | `histogram_quantile(0.95, rate(http_server_request_duration_seconds_bucket[5m]))` | > 1.5 × baseline |
+| Resolver failures | Log event 23 | Any |
+| Redis can evict keys | Log event 105 | Any |
+| Redis without TLS | Log event 107 | Any |
 
-### Key metrics to track
+With the Redis package, don't alert on `aspnetcore.rate_limiting.queued_requests`
+([why](OBSERVABILITY.md#dashboards-and-alerts-with-the-redis-package)).
 
-| Metric / Signal | Query (Prometheus example) | Threshold |
-|---|---|---|
-| 429 rate | `rate(apipipeline_ratelimit_rejected_total[5m])` | Alert if > 10/min sustained |
-| 5xx rate by route | `rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])` | Alert if > 1% of traffic |
-| p95 latency | `histogram_quantile(0.95, rate(http_server_request_duration_seconds_bucket[5m]))` | Alert if > baseline × 1.5 |
-| Request body sizes | `histogram_quantile(0.99, rate(apipipeline_request_size_bytes_bucket[5m]))` | Capacity planning |
-| Deprecation headers | `rate(apipipeline_deprecation_headers_added_total[1h])` | Track adoption of deprecated versions |
+## Before each rollout
 
-### Grafana dashboard essentials
-
-- Rate limit rejection rate and burst shape (time series)
-- 429/5xx breakdown by route and API version (table)
-- Latency percentiles p50/p95/p99 (heatmap)
-- Request body size distribution (histogram)
-
-## Deployment checks
-
-Before rollout:
-
-```bash
-# 1. Build and test
-dotnet build
-dotnet test
-
-# 2. Validate production config (look for unsafe defaults)
-grep -r '"AllowAllInDevelopment": true' appsettings.Production.json  # should not match
-grep -r '"ClearDefaultProxies": false' appsettings.Production.json  # review if matched
-
-# 3. Verify health endpoints
-curl -s http://localhost:8080/health | jq .
-
-# 4. Confirm no dev-only flags in production config
-```
-
-| Check | Command / Action |
-|---|---|
-| Build clean | `dotnet build --no-restore` |
-| Tests pass | `dotnet test --no-build` |
-| No dev CORS in prod | Verify `AllowAllInDevelopment` is `false` in production config |
-| Proxy trust configured | `KnownNetworks` or `KnownProxies` populated for your topology |
-| Health probes wired | Ingress probes target mapped health endpoints |
-| Request limits set | `MaxRequestBodySize` matches API contract and ingress limits |
-
-## Performance hygiene
-
-- Run microbenchmarks with `perf/ApiPipeline.NET.Perf`:
-
-```bash
-dotnet run -c Release --project perf/ApiPipeline.NET.Perf
-```
-
-- Compare `MinimalPipeline_GetPing` vs `FullPipeline_GetPing` regularly.
-- Treat p95 regression above 20% vs baseline as a release gate for middleware-heavy changes.
-- See [performance.md](performance.md) for baseline benchmark commands and load test matrix.
-
-## Security operations
-
-- Rotate trusted proxy/IP ranges as infrastructure changes.
-- Keep HSTS only for correct HTTPS deployments. Set `StrictTransportSecurityPreload: true` only when all subdomains support HTTPS.
-- Review deprecation headers for legacy API versions and communicate sunset windows early.
-- Audit `AllowedHeaders` in CORS — prefer explicit lists over `["*"]`.
-
-## Incident entry points
-
-- Resilience/traffic incidents: [RUNBOOK.md](RUNBOOK.md)
-- Misconfiguration and unexpected behavior: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- Build and tests pass.
+- `UseApiPipeline` calls `.RequireSecurityFeaturesEnabled()`, so a security feature left off fails
+  startup instead of shipping disabled.
+- Shared (Redis) limits: in staging, under load, `store.duration` p99 is well below
+  `CommandTimeout` and `store.fallback` stays near zero; the connection uses TLS (no event 107) and
+  a least-privilege user ([TLS and credentials](features/rate-limiting.md#tls-and-credentials)).
+- `KnownNetworks`/`KnownProxies` match the ingress (otherwise pods won't start).
+- Ingress limits match `MaxRequestBodySize` and `DefaultTimeout`.
+- The `pipeline composed` log line lists the expected phases.

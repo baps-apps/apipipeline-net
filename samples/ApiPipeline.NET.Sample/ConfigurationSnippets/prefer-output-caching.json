@@ -1,8 +1,0 @@
-{
-  "ResponseCachingOptions": {
-    "Enabled": true,
-    "PreferOutputCaching": true,
-    "SizeLimitBytes": 52428800,
-    "UseCaseSensitivePaths": false
-  }
-}

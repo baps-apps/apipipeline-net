@@ -1,24 +1,14 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 
 namespace ApiPipeline.NET.Tests;
 
 /// <summary>
-/// Tests for <c>UseApiPipelineForwardedHeaders</c>, verifying that <c>X-Forwarded-For</c>
-/// header processing, forward limits, proxy trust lists, and the disabled-feature path
-/// all behave correctly.
+/// Forwarded headers processing; trust-boundary cases are in
+/// <see cref="ForwardedHeadersTrustBoundaryTests"/>. Tests set a trusted loopback peer.
 /// </summary>
-/// <remarks>
-/// Production-hardening plan T-7 Step 16.2 (untrusted / spoofed <c>X-Forwarded-For</c>) is covered by
-/// <see cref="ForwardedHeadersTests.UseApiPipelineForwardedHeaders_ForwardLimit_Constrains_XFF_Hops"/>: when <c>ForwardLimit</c>
-/// restricts to the closest hop, an outer client IP in the chain must not become <c>RemoteIpAddress</c>.
-/// A literal “single forged IP + strict KnownProxies” integration test is unreliable under
-/// <see cref="Microsoft.AspNetCore.TestHost"/>, which often leaves <c>Connection.RemoteIpAddress</c>
-/// null; the framework then skips the known-proxy gate and may still apply <c>X-Forwarded-For</c>
-/// (see <c>ForwardedHeadersMiddleware</c> in ASP.NET Core).
-/// </remarks>
 public sealed class ForwardedHeadersTests
 {
     /// <summary>
@@ -32,19 +22,26 @@ public sealed class ForwardedHeadersTests
         var config = TestAppBuilder.MinimalConfig();
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/ip", (HttpContext ctx) =>
             Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
         request.Headers.Add("X-Forwarded-For", "203.0.113.42");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("203.0.113.42");
     }
 
@@ -58,12 +55,19 @@ public sealed class ForwardedHeadersTests
         var config = TestAppBuilder.MinimalConfig();
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -78,23 +82,30 @@ public sealed class ForwardedHeadersTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "false";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/ip", (HttpContext ctx) =>
             Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
         request.Headers.Add("X-Forwarded-For", "203.0.113.42");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().NotContain("203.0.113.42");
     }
 
@@ -108,25 +119,32 @@ public sealed class ForwardedHeadersTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ForwardLimit"] = "1";
-            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ForwardLimit"] = "1";
+            c["ApiPipeline:ForwardedHeaders:ClearDefaultProxies"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/ip", (HttpContext ctx) =>
             Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
         request.Headers.Add("X-Forwarded-For", "198.51.100.1, 203.0.113.42");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("203.0.113.42");
         body.Should().NotContain("198.51.100.1");
     }
@@ -141,113 +159,140 @@ public sealed class ForwardedHeadersTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ForwardLimit"] = "2";
-            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ForwardLimit"] = "2";
+            c["ApiPipeline:ForwardedHeaders:ClearDefaultProxies"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/ip", (HttpContext ctx) =>
             Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
         request.Headers.Add("X-Forwarded-For", "198.51.100.1, 203.0.113.42");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body.Should().Contain("198.51.100.1");
     }
 
     /// <summary>
-    /// Verifies that an out-of-range CIDR prefix length (e.g. "10.0.0.0/999") is skipped
-    /// gracefully with a warning rather than throwing at startup or on first request.
+    /// A trust entry that does not parse fails validation in every environment, Development
+    /// included: skipped, it would leave a narrower trust set than written, and every client behind
+    /// the proxy it meant would share the proxy's address.
     /// </summary>
-    [Fact]
-    public async Task UseApiPipelineForwardedHeaders_Invalid_CIDR_Does_Not_Throw()
-    {
-        // An out-of-range prefix length must be skipped gracefully, not throw
-        var config = TestAppBuilder.MinimalConfig(c =>
-        {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
-            c["ForwardedHeadersOptions:KnownNetworks:0"] = "10.0.0.0/999";  // invalid prefix
-            c["ForwardedHeadersOptions:KnownNetworks:1"] = "10.0.0.0/8";    // valid prefix
-        });
-
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseApiPipelineForwardedHeaders();
-        app.MapGet("/test", () => Results.Ok("ok"));
-
-        // Must not throw on startup or first request
-        await app.StartAsync();
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
-    }
-
-    /// <summary>
-    /// Verifies that an unparseable <c>KnownProxies</c> entry is skipped gracefully with a
-    /// warning rather than throwing at startup or on first request.
-    /// </summary>
-    [Fact]
-    public async Task UseApiPipelineForwardedHeaders_Invalid_ProxyIp_Does_Not_Throw()
+    [Theory]
+    [InlineData("KnownNetworks", "10.0.0.0/999")]
+    [InlineData("KnownProxies", "not-an-ip-address")]
+    public async Task InvalidTrustEntry_NextToAValidOne_FailsValidation(string list, string entry)
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "true";
-            c["ForwardedHeadersOptions:KnownProxies:0"] = "not-an-ip-address"; // invalid
-            c["ForwardedHeadersOptions:KnownProxies:1"] = "10.0.0.1";          // valid
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ClearDefaultProxies"] = "true";
+            c[$"ApiPipeline:ForwardedHeaders:{list}:0"] = entry;
+            c[$"ApiPipeline:ForwardedHeaders:{list}:1"] = list == "KnownProxies" ? "10.0.0.1" : "10.0.0.0/8";
         });
 
-        await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseApiPipelineForwardedHeaders();
-        app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Development);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
-        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+        var act = () => app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
+
+        act.Should().Throw<Microsoft.Extensions.Options.OptionsValidationException>()
+            .WithMessage($"*{list} entry '{entry}'*");
     }
 
     /// <summary>
-    /// Verifies that ForwardLimit constrains processing to the N closest hops in
-    /// X-Forwarded-For, ignoring outer hops added by intermediate proxies.
+    /// The framework's parser reads shorthand, octal and hex IPv4 as other addresses (10.0.10 is
+    /// 10.0.0.10, 010.0.0.1 is 8.0.0.1, 10/8 is 0.0.0.0/8), which would trust the wrong proxy:
+    /// IPv4 must be four decimal numbers.
     /// </summary>
-    /// <remarks>
-    /// Fulfills production-hardening plan T-7 Step 16.2: the left-most / outer IP in the chain
-    /// (<c>1.2.3.4</c>) must not appear as the resolved client when <c>ForwardLimit</c> is 1.
-    /// </remarks>
+    [Theory]
+    [InlineData("KnownProxies", "10.0.10")]
+    [InlineData("KnownProxies", "010.0.0.1")]
+    [InlineData("KnownProxies", "0x0A.0.0.1")]
+    [InlineData("KnownNetworks", "10/8")]
+    [InlineData("KnownNetworks", "010.0.0.0/8")]
+    public async Task AmbiguousIPv4TrustEntry_FailsValidation(string list, string entry)
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c[$"ApiPipeline:ForwardedHeaders:{list}:0"] = entry;
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Development);
+
+        var act = () => app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
+
+        act.Should().Throw<Microsoft.Extensions.Options.OptionsValidationException>()
+            .WithMessage("*four decimal numbers*");
+    }
+
+    /// <summary>Disabled, the lists are not read, so they are not checked either.</summary>
+    [Fact]
+    public async Task InvalidTrustEntry_WithForwardedHeadersDisabled_DoesNotFail()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "false";
+            c["ApiPipeline:ForwardedHeaders:KnownProxies:0"] = "not-an-ip-address";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
+
+        var act = () => app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
+
+        act.Should().NotThrow();
+    }
+
+    /// <summary>
+    /// <c>ForwardLimit: 1</c> reads only the closest hop: the outer <c>1.2.3.4</c> is not the client.
+    /// </summary>
     [Fact]
     public async Task UseApiPipelineForwardedHeaders_ForwardLimit_Constrains_XFF_Hops()
     {
         // ForwardLimit=1 means only the closest (right-most) XFF entry is applied
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ForwardLimit"] = "1";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ForwardLimit"] = "1";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        app.UseApiPipelineForwardedHeaders();
+        app.Use(async (ctx, next) =>
+        {
+            // Loopback is the default trusted proxy; TestServer supplies no peer address, and the
+            // package will not honour forwarded headers from an unidentifiable peer.
+            ctx.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+            await next(ctx);
+        });
+        app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
         app.MapGet("/ip", (HttpContext ctx) =>
             Results.Ok(new { ip = ctx.Connection.RemoteIpAddress?.ToString() }));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/ip");
         // Two hops: outer (spoofed) = 1.2.3.4, closest (trusted proxy) = 203.0.113.42
         request.Headers.Add("X-Forwarded-For", "1.2.3.4, 203.0.113.42");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         // Only the closest hop (203.0.113.42) is applied with ForwardLimit=1
         body.Should().Contain("203.0.113.42");
         body.Should().NotContain("1.2.3.4");

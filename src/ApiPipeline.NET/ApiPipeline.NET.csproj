@@ -1,24 +1,36 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Shared\Shared.props" />
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Trimming and Native AOT analyzers on: a base package for every API must not block AOT.
+         Configuration binding and options validation are source-generated (no reflection). -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
     <PackageId>ApiPipeline.NET</PackageId>
-    <Version>1.0.0</Version>
-    <Authors>BAPS Dev Team</Authors>
-    <Description>Shared ASP.NET Core API pipeline (rate limiting, compression, caching, security headers, CORS, correlation ID, API version deprecation, request limits).</Description>
-    <PackageTags>aspnetcore;api;pipeline;middleware;ratelimiting;compression;caching;security-headers;cors;correlation-id;api-versioning;kestrel;request-limits;forwarded-headers;exception-handling;problemdetails;observability</PackageTags>
-    <PackageProjectUrl>https://github.com/baps-apps/apipipeline-net/</PackageProjectUrl>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Description>Shared ASP.NET Core API pipeline (rate limiting, compression, caching, security headers, CORS, correlation ID, request limits).</Description>
+    <PackageTags>aspnetcore;api;pipeline;middleware;ratelimiting;compression;caching;security-headers;cors;correlation-id;api-versioning;kestrel;request-limits;forwarded-headers;observability</PackageTags>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <!-- Microsoft.NET.Sdk.Web supplies these as implicit usings; this is a library, so it targets
+       Microsoft.NET.Sdk and declares the same set explicitly. -->
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Hosting" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="CodeStyle.NET" />
+    <PackageReference Include="CodeStyle.NET" PrivateAssets="all" ExcludeAssets="runtime" />
   </ItemGroup>
 </Project>

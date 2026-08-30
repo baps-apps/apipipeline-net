@@ -1,178 +1,115 @@
 # Observability
 
-How ApiPipeline.NET's traces and metrics reach your observability backend, why the wiring is a
-**two-call** setup, and the full trace-tag / metric reference.
+The package emits metrics on one `Meter` (`ApiPipeline.NET`), tags the request span with
+`apipipeline.correlation_id`, scopes request logs with `CorrelationId`, and logs startup findings.
+It creates no spans and does not configure OpenTelemetry.
 
-## TL;DR
-
-```csharp
-using ApiPipeline.NET.OpenTelemetry;   // AddApiPipelineTelemetrySources
-using OpenTelemetry.NET.Extensions;    // AddObservability
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.AddObservability();               // OpenTelemetry.NET — host bootstrap (once per process)
-builder.AddApiPipelineTelemetrySources(); // ApiPipeline.NET — registers its ActivitySource + Meter
-```
-
-Two calls, in this order. `AddObservability()` first (builds the export pipeline), then
-`AddApiPipelineTelemetrySources()` (plugs ApiPipeline.NET's signals into it).
-
-- `AddObservability()` (from the **OpenTelemetry.NET** package) builds the export pipeline — SDK, exporters,
-  resource attributes, log enrichment — and watches the usual sources (ASP.NET Core, `HttpClient`, runtime).
-- `AddApiPipelineTelemetrySources()` (from **ApiPipeline.NET.OpenTelemetry**) adds the `ApiPipeline.NET`
-  source/meter to that pipeline so pipeline traces and metrics are actually exported.
-- **Logs need no extra wiring**: pipeline middleware writes through `ILogger`, which the host logging
-  pipeline (configured by `AddObservability`) already captures.
-
-## Why two calls
-
-### Separation of concerns
-
-Bootstrapping observability is the **OpenTelemetry.NET** package's responsibility, not ApiPipeline.NET's.
-ApiPipeline.NET only *contributes its own signals* on top of whatever bootstrap the host chose. Keeping the
-two apart means:
-
-- One package owns the SDK lifecycle, exporters, and config (`AppSettings` / `OpenTelemetryOptions`).
-- ApiPipeline.NET stays a good citizen — it never re-initializes the SDK behind your back.
-
-`AddObservability()` may only run **once per process** (it initializes process-wide state such as
-`SensitiveDataConstants`). If a helper called it for you *and* you called it yourself, the second call throws:
-
-```text
-System.InvalidOperationException: SensitiveDataConstants.Initialize has already been called in this process.
-AddObservability may only be called once per process lifetime.
-```
-
-By making source registration a separate, side-effect-free call, you bootstrap exactly once and add
-ApiPipeline.NET's signals without that hazard.
-
-### The OpenTelemetry SDK is opt-in *by source name*
-
-This is the core mechanic. The .NET diagnostics APIs (`ActivitySource`, `Meter`) emit unconditionally —
-the producing code doesn't know or care whether anyone is listening. The OpenTelemetry SDK only **records
-and exports signals from sources it was explicitly told to watch**, by name:
+## Wiring
 
 ```csharp
-tracerProvider.AddSource("ApiPipeline.NET");   // traces
-meterProvider.AddMeter("ApiPipeline.NET");     // metrics
-```
+builder.Services.AddOpenTelemetry()
+    .WithTracing(t => t.AddAspNetCoreInstrumentation().AddOtlpExporter())
+    .WithMetrics(m => m
+        .AddAspNetCoreInstrumentation()
+        .AddMeter(ApiPipelineTelemetry.MeterName)
+        .AddOtlpExporter());
 
-`AddApiPipelineTelemetrySources()` is exactly those two registrations:
-
-```csharp
-builder.Services.ConfigureOpenTelemetryTracerProvider(t => t.AddSource(ApiPipelineTelemetry.ActivitySourceName));
+// Or, when OpenTelemetry is configured elsewhere:
 builder.Services.ConfigureOpenTelemetryMeterProvider(m => m.AddMeter(ApiPipelineTelemetry.MeterName));
 ```
 
-Both `ActivitySourceName` and `MeterName` are the constant `"ApiPipeline.NET"`.
+Without `AddMeter` the metrics are never exported.
 
-If the source is **not** registered, every `Activity` and metric ApiPipeline.NET middleware emits is dropped
-on the floor by the SDK — no error, no warning, just silence.
+### Metrics emitted
 
-### Mental model
+| Metric | Type | Attributes | Recorded when |
+| --- | --- | --- | --- |
+| `apipipeline.rate_limiting.rejected` | Counter | `…policy`, `…partition_type` (`user`, `apikey`, `ip`, `anonymous`, `claim`, resolver type) | Main limiter returns 429 |
+| `apipipeline.edge_rate_limiting.rejected` | Counter | | Edge limiter returns 429 |
+| `apipipeline.rate_limiting.partitions.overflow` | Counter | `…partition_type` (`ip`, `identity`) | `MaxIpPartitions` or `MaxIdentityPartitions` reached |
+| `apipipeline.edge_rate_limiting.partitions.overflow` | Counter | | Edge `MaxIpPartitions` reached |
+| `apipipeline.rate_limiting.store.fallback` | Counter | `…policy`, `…store.fallback_reason` (`timeout`, `error`, `circuit_open`, `connecting`) | Redis: a request decided without Redis |
+| `apipipeline.rate_limiting.store.duration` | Histogram (s) | `…policy`; `error.type` when Redis didn't answer | Redis: each call (not while the circuit is open) |
+| `apipipeline.rate_limiting.store.degraded` | Gauge (0/1) | | Redis: 1 while the circuit is open |
+| `apipipeline.cors.rejected` | Counter | | `Origin` not allowed |
+| `apipipeline.correlation_id.rejected` | Counter | | Invalid inbound `X-Correlation-Id` replaced |
+| `apipipeline.request.body.size` | Histogram (bytes) | `http.request.method`, `http.route` | `WithRequestSizeTracking()`, `Content-Length` > 0 |
 
-```text
-AddObservability()               → SDK + exporters running. Watches: ASP.NET Core, HttpClient, runtime.
-                                   ApiPipeline.NET signals emitted but UNWATCHED → dropped.
-AddApiPipelineTelemetrySources() → adds "ApiPipeline.NET" to the watch list → signals now exported.
-```
+`…` stands for `apipipeline.rate_limiting.`. Prometheus replaces dots with underscores and adds
+`_total` to counters: `apipipeline_rate_limiting_rejected_total{apipipeline_rate_limiting_partition_type="ip"}`.
+Attribute values are bounded (configuration or fixed sets; unknown methods are `_OTHER`); paths,
+users, keys and IDs are never attributes. Alerts: [OPERATIONS.md](OPERATIONS.md#monitoring).
 
-`AddObservability()` lays the pipe. `AddApiPipelineTelemetrySources()` connects ApiPipeline.NET's faucet to
-it. Skip the second call and pipeline telemetry exists in-process but never leaves.
+`apipipeline.rate_limiting.rejected` and ASP.NET Core's `aspnetcore.rate_limiting.requests` count
+the same rejections; never add them. Use the framework's series for rates and the package's for the
+partition type and the default policy's name. The edge limiter has only its own counter.
 
-## Real-world scenario: a throttled client
+### Dashboards and alerts with the Redis package
 
-SPM.Api runs behind an ingress. A client hammers an endpoint and trips the `strict` rate-limit policy.
+A Redis limiter always takes the framework's asynchronous ("queued") path, so with the Redis
+package `aspnetcore.rate_limiting.queued_requests` is never 0 under load and
+`request.time_in_queue` is the Redis round trip. Don't alert on them; chart
+`store.duration`, `store.degraded` and `store.fallback` instead.
 
-### Without `AddApiPipelineTelemetrySources()`
+## Traces
 
-- `AddObservability()` exports the incoming HTTP server span and runtime metrics — that part works.
-- The client gets `429`. The pipeline calls `RecordRateLimitRejected("strict", "user")`, incrementing the
-  `apipipeline.ratelimit.rejected` counter, and sets the `correlation_id` tag on the current activity.
-- The SDK never registered the `ApiPipeline.NET` meter/source → **the counter increment and the tag are
-  dropped.**
-- Result: your "rate-limit rejections" dashboard reads a flat zero, and traces have no `correlation_id` to
-  pivot on. You are blind to pipeline behavior during an incident.
+`apipipeline.correlation_id` on ASP.NET Core's request span holds the correlation ID: search traces
+by it. Responses carry the trace ID in `X-Trace-Id` (unless `EmitTraceIdHeader: false` or there is no
+activity). No tracing, no tag.
 
-### With `AddApiPipelineTelemetrySources()`
+## Logging
 
-- Same `429`, but the SDK now watches `ApiPipeline.NET`.
-- `apipipeline.ratelimit.rejected{policy_name=strict,partition_type=user}` is exported to Prometheus → an
-  alert fires: "user X is being throttled."
-- The incoming request span carries `correlation_id=<id>` → search Tempo/Jaeger by that ID and follow the
-  single request across SPM.Api and into downstream services.
-- Other pipeline signals become visible too: `apipipeline.exceptions.handled`,
-  `apipipeline.deprecation.headers_added`, `apipipeline.cors.rejected`, and the
-  `apipipeline.request.body_bytes` histogram.
+`WithCorrelationId()` opens a scope with `CorrelationId`; the host adds `TraceId`. Your provider
+must include scopes (console: `IncludeScopes: true`).
 
-## What ApiPipeline.NET exports
+Event IDs are stable; match on them, not the text. Core 1–99, Redis 100–199, Versioning 200–299.
 
-Everything below comes from a single `ActivitySource` and a single `Meter`, both named **`ApiPipeline.NET`**.
-This is the complete, exhaustive list — the package emits nothing else.
+| Event ID | Level | Message starts with | Meaning |
+| --- | --- | --- | --- |
+| 1 | Debug | `Rejected invalid correlation ID` | Malformed `X-Correlation-Id` replaced |
+| 10 | Information | `ApiPipeline.NET pipeline composed` | Phases in run order; check first when a feature "does nothing" |
+| 11 | Warning | `... was requested more than once` | Repeated `With*()`; runs once |
+| 12 | Warning | `... runs before ...` | Ordering rule broken; message says why |
+| 13 | Warning | `...:Enabled is true, but its phase was never added` | Feature on, phase missing |
+| 14 | Warning | `UseApiPipeline(...) was never called` | Features on, no pipeline |
+| 15 | Warning | `With... is in the pipeline, but ...:Enabled is false` | Phase requested, feature off |
+| 20 | Information | `Edge rate limiting enabled` | |
+| 21 | Information | `Rate limiting enabled` | Lists policies |
+| 22 | Warning | `Rate limiting: the server is listening on` | [Socket listener](features/rate-limiting.md#unix-sockets-and-named-pipes) rejects anonymous requests |
+| 23 | Error | `Rate limiting: the partition key resolver` | A resolver threw; request partitioned by the built-in chain |
+| 24 | Warning | `... client-address partitions are live` | `MaxIpPartitions` reached (at most once a minute) |
+| 25 | Warning | `... identity partitions ... are live` | `MaxIdentityPartitions` reached (at most once a minute) |
+| 30 | Warning | `ResponseCompression: EnableForHttps is true` | BREACH reminder |
+| 31 | Information | `ResponseCompression is enabled but EnableForHttps is false` | HTTPS responses not compressed |
+| 40 | Warning | `CORS: AllowAll policy is active` | Development allow-all |
+| 42 | Warning | `CORS: this application registered its own default policy` | Replaced (Development; elsewhere fails startup) |
+| 43 | Warning | `CORS: ... an ICorsPolicyProvider` | Later provider replaces the pipeline's (Development; elsewhere fails) |
+| 44 | Warning | `CORS: the application's own ICorsPolicyProvider` | Your provider is wrapped |
+| 52 | Warning | `ForwardedHeaders is enabled` or `ApiPipeline:ForwardedHeaders:` | Trust or host problem; fails startup outside Development |
+| 62 | Warning | `ApiPipeline.NET 2.0 reads its settings from` | 1.x top-level sections present ([migration](migration.md#3a-every-section-moved-under-apipipeline)) |
+| 70 | Warning | `Request limits: this application runs on` | IIS in-process or HTTP.sys can't enforce some limits |
+| 100 | Warning | `Shared rate limiting is unavailable` | Redis circuit opened; says what each fallback does |
+| 101 | Information | `Shared rate limiting restored` | Circuit closed |
+| 102 | Debug | `A Redis rate limit call failed` | One call failed; carries the exception |
+| 103 | Warning | `A Redis-backed rate limiter (policy` | Code uses only `AttemptAcquire`; switch to `AcquireAsync` |
+| 104 | Warning | `Redis at ... is version` | Redis older than 5.0 |
+| 105 | Warning | `Redis at ... has a memory limit and maxmemory-policy` | Keys can be evicted; use `noeviction` |
+| 106 | Debug | `Could not check the Redis server` | `INFO` refused |
+| 107 | Warning | `Redis at ... is reached without TLS` | Plain text to another host, outside Development; add `ssl=true` |
+| 200 | Warning | `ApiPipeline.NET.Versioning 2.0 reads deprecation dates` | 1.x `ApiVersionDeprecationOptions` section present |
+| 201 | Warning | `API version deprecation policies are configured, but` | Version reporting off |
 
-### Traces
+Unused, never reassigned: 41, 50, 51, 60, 61.
 
-ApiPipeline.NET **creates no spans of its own.** Instead it enriches the **current** activity (typically the
-ASP.NET Core server span produced by `AddObservability()`'s instrumentation) with tags, so they ride along
-with the request trace you already export.
+## Configuration changes after startup
 
-The only span attribute the package sets:
+Settings are read once through `IOptions<T>`; edits apply on restart. With `ValidateOnStart()` the
+framework's options monitor throws inside its change callback on an invalid edit; this never reaches
+requests or crashes the process (`PollingFileWatcherConfigurationTests`), but may show in
+first-chance exception logs. Don't read `IOptionsMonitor<ApiPipeline*Options>` yourself: it throws
+after an invalid edit.
 
-| Tag | Set by | Value |
-|---|---|---|
-| `correlation_id` | `CorrelationIdMiddleware` (via `ApiPipelineTelemetry.SetCorrelationIdOnCurrentActivity`) | The resolved correlation ID — propagated from the client `X-Correlation-Id` header, or generated when absent |
+## Testing
 
-> Because there are no custom spans, ApiPipeline.NET adds **no extra entries to your trace waterfall** — it
-> only annotates the existing request span. If you see no `correlation_id` on traces, the source isn't
-> registered (see [Troubleshooting](#troubleshooting)).
-
-### Metrics
-
-Six instruments on the `ApiPipeline.NET` meter (5 counters + 1 histogram). Instrument names follow the
-`apipipeline.*` convention.
-
-| Metric | Type | Unit | Dimensions | Emitted by | When emitted |
-|---|---|---|---|---|---|
-| `apipipeline.ratelimit.rejected` | Counter | — | `policy_name`, `partition_type` (`user` \| `ip` \| `anonymous` \| `unknown`) | Rate limiting (`AddRateLimiting` rejection callback) | A request is rejected by rate limiting (429) |
-| `apipipeline.deprecation.headers_added` | Counter | — | `apipipeline.api_version` | `ApiVersionDeprecationMiddleware` | A response includes API version deprecation headers |
-| `apipipeline.correlation_id.processed` | Counter | — | — | `CorrelationIdMiddleware` | A correlation ID is generated or propagated |
-| `apipipeline.exceptions.handled` | Counter | — | — | Exception handler (`UseApiPipeline` exception handling) | An unhandled exception is caught by the pipeline handler |
-| `apipipeline.cors.rejected` | Counter | — | — | `LiveConfigCorsPolicyProvider` | A CORS request is rejected (origin not in `AllowedOrigins`) |
-| `apipipeline.request.body_bytes` | Histogram | `bytes` | — | `RequestSizeMiddleware` | Incoming request body size, sampled from `Content-Length` when present |
-
-> Dimensions on the rate-limit and deprecation counters are only attached when the corresponding value is
-> available; otherwise the counter is incremented without them.
-
-### Logs
-
-ApiPipeline.NET does not define its own log source — middleware writes through the standard `ILogger<T>`,
-captured by the host logging pipeline that `AddObservability()` configures. Nothing to register here.
-
-## Backend setup
-
-`AddApiPipelineTelemetrySources()` only registers the source/meter — it does not choose an exporter. The
-exporter and all SDK configuration come from `AddObservability()` (`AppSettings` / `OpenTelemetryOptions`
-sections, plus code-based overrides). See the OpenTelemetry.NET package docs for the configuration surface.
-
-Typical backends for the exported traces and metrics:
-
-- **Traces**: Grafana Tempo, Jaeger, Azure Monitor / Application Insights.
-- **Metrics**: Prometheus (scrape or OTLP), Azure Monitor.
-
-In Kubernetes, point the OTLP exporter at your collector and rely on the `correlation_id` trace tag for
-cross-service correlation. See [OPERATIONS.md](OPERATIONS.md) for deployment and probe configuration.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `InvalidOperationException: ... AddObservability may only be called once per process` | `AddObservability()` called twice (e.g. directly *and* via a helper) | Call `AddObservability()` exactly once, then `AddApiPipelineTelemetrySources()` |
-| ASP.NET Core spans export but no `apipipeline.*` metrics, no `correlation_id` tag | `AddApiPipelineTelemetrySources()` not called — source unregistered | Add `builder.AddApiPipelineTelemetrySources();` after `AddObservability()` |
-| Nothing exports at all | `AddObservability()` not called, or no exporter configured | Bootstrap with `AddObservability()` and configure an exporter |
-
-## Related
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) — pipeline design and middleware ordering
-- [INTERNALS.md](INTERNALS.md) — telemetry internals and the `ApiPipelineTelemetry` API
-- [OPERATIONS.md](OPERATIONS.md) — production deployment and monitoring
+Each host has its own meter (from `IMeterFactory`). Filter a `MeterListener` on
+`instrument.Meter.Scope` to see one host's measurements.

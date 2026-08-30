@@ -1,53 +1,60 @@
 namespace ApiPipeline.NET.Configuration;
 
 /// <summary>
-/// Configuration section keys consumed by ApiPipeline.NET.
+/// Configuration section names. Every feature reads a child of <see cref="Section"/>, for example
+/// <c>ApiPipeline:Cors</c>.
 /// </summary>
 public static class ApiPipelineConfigurationKeys
 {
-    /// <summary>
-    /// The configuration section name for rate limiting options.
-    /// </summary>
-    public const string RateLimiting = "RateLimitingOptions";
+    /// <summary>The top-level section: <c>ApiPipeline</c>.</summary>
+    public const string Section = "ApiPipeline";
 
-    /// <summary>
-    /// The configuration section name for response compression options.
-    /// </summary>
-    public const string ResponseCompression = "ResponseCompressionOptions";
+    /// <summary>Correlation ID options: <c>ApiPipeline:CorrelationId</c>.</summary>
+    public const string CorrelationId = "CorrelationId";
 
-    /// <summary>
-    /// The configuration section name for response caching options.
-    /// </summary>
-    public const string ResponseCaching = "ResponseCachingOptions";
+    /// <summary>Rate limiting options: <c>ApiPipeline:RateLimiting</c>.</summary>
+    public const string RateLimiting = "RateLimiting";
 
-    /// <summary>
-    /// The configuration section name for security header settings.
-    /// </summary>
-    public const string SecurityHeaders = "SecurityHeadersOptions";
+    /// <summary>Response compression options: <c>ApiPipeline:ResponseCompression</c>.</summary>
+    public const string ResponseCompression = "ResponseCompression";
 
-    /// <summary>
-    /// The configuration section name for CORS options.
-    /// </summary>
-    public const string Cors = "CorsOptions";
+    /// <summary>Response caching options: <c>ApiPipeline:ResponseCaching</c>.</summary>
+    public const string ResponseCaching = "ResponseCaching";
 
-    /// <summary>
-    /// The configuration section name for API version deprecation options.
-    /// </summary>
-    public const string ApiVersionDeprecation = "ApiVersionDeprecationOptions";
+    /// <summary>Security header options: <c>ApiPipeline:SecurityHeaders</c>.</summary>
+    public const string SecurityHeaders = "SecurityHeaders";
 
-    /// <summary>
-    /// The configuration section name for request limits options.
-    /// </summary>
-    public const string RequestLimits = "RequestLimitsOptions";
+    /// <summary>CORS options: <c>ApiPipeline:Cors</c>.</summary>
+    public const string Cors = "Cors";
 
-    /// <summary>
-    /// The configuration section name for forwarded headers options.
-    /// </summary>
-    public const string ForwardedHeaders = "ForwardedHeadersOptions";
+    /// <summary>Request limits options: <c>ApiPipeline:RequestLimits</c>.</summary>
+    public const string RequestLimits = "RequestLimits";
 
-    /// <summary>
-    /// The configuration section name for output caching options.
-    /// </summary>
-    public const string OutputCaching = "OutputCachingOptions";
+    /// <summary>Forwarded headers options: <c>ApiPipeline:ForwardedHeaders</c>.</summary>
+    public const string ForwardedHeaders = "ForwardedHeaders";
+
+    /// <summary>Output caching options: <c>ApiPipeline:OutputCaching</c>.</summary>
+    public const string OutputCaching = "OutputCaching";
+
+    /// <summary>Pre-authentication (edge) rate limiting options: <c>ApiPipeline:EdgeRateLimiting</c>.</summary>
+    public const string EdgeRateLimiting = "EdgeRateLimiting";
+
+    /// <summary>Request timeout options: <c>ApiPipeline:RequestTimeouts</c>.</summary>
+    public const string RequestTimeouts = "RequestTimeouts";
+
+    /// <summary>Top-level section names the package does not read, keyed by their <c>ApiPipeline</c> child; read only to warn.</summary>
+    internal static readonly IReadOnlyDictionary<string, string> LegacyRootSections = new Dictionary<string, string>
+    {
+        ["CorrelationIdOptions"] = CorrelationId,
+        ["RateLimitingOptions"] = RateLimiting,
+        ["ResponseCompressionOptions"] = ResponseCompression,
+        ["ResponseCachingOptions"] = ResponseCaching,
+        ["SecurityHeadersOptions"] = SecurityHeaders,
+        ["CorsOptions"] = Cors,
+        ["RequestLimitsOptions"] = RequestLimits,
+        ["ForwardedHeadersOptions"] = ForwardedHeaders,
+        ["OutputCachingOptions"] = OutputCaching,
+        ["EdgeRateLimitingOptions"] = EdgeRateLimiting,
+        ["RequestTimeoutsOptions"] = RequestTimeouts,
+    };
 }
-

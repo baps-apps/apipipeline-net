@@ -1,17 +1,19 @@
 {
-  "CorsOptions": {
-    "Enabled": true,
-    "AllowAllInDevelopment": true,
-    "AllowedOrigins": [],
-    "AllowCredentials": false
-  },
-  "SecurityHeadersOptions": {
-    "Enabled": true,
-    "EnableStrictTransportSecurity": false
-  },
-  "RateLimitingOptions": {
-    "Enabled": true,
-    "DefaultPolicy": "permissive",
-    "AnonymousFallback": "Reject"
+  "ApiPipeline": {
+    "Cors": {
+      "Enabled": true,
+      "AllowAllInDevelopment": true,
+      "AllowedOrigins": [],
+      "AllowCredentials": false
+    },
+    "SecurityHeaders": {
+      "Enabled": true,
+      "EnableStrictTransportSecurity": false
+    },
+    "RateLimiting": {
+      "Enabled": true,
+      "DefaultPolicy": "permissive",
+      "AnonymousFallback": "Reject"
+    }
   }
 }

@@ -1,5 +1,5 @@
 using FluentAssertions;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Tests;
@@ -35,8 +35,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "strict";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "strict";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -56,14 +56,14 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "nonexistent";
-            c["RateLimitingOptions:Policies:0:Name"] = "strict";
-            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "10";
-            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "nonexistent";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "strict";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "FixedWindow";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "10";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:01:00";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -100,8 +100,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowCredentials"] = "true";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowCredentials"] = "true";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -121,9 +121,9 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowCredentials"] = "true";
-            c["CorsOptions:AllowedOrigins:0"] = "https://example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowCredentials"] = "true";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://example.com";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -141,9 +141,9 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowedMethods:0"] = " ";
-            c["CorsOptions:AllowedOrigins:0"] = "https://example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowedMethods:0"] = " ";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://example.com";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -162,9 +162,9 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowedHeaders:0"] = " ";
-            c["CorsOptions:AllowedOrigins:0"] = "https://example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowedHeaders:0"] = " ";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://example.com";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -200,20 +200,20 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "dup";
-            c["RateLimitingOptions:Policies:0:Name"] = "dup";
-            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "10";
-            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
-            c["RateLimitingOptions:Policies:1:Name"] = "dup";
-            c["RateLimitingOptions:Policies:1:Kind"] = "FixedWindow";
-            c["RateLimitingOptions:Policies:1:PermitLimit"] = "20";
-            c["RateLimitingOptions:Policies:1:WindowSeconds"] = "30";
-            c["RateLimitingOptions:Policies:1:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:1:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "dup";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "dup";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "FixedWindow";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "10";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:01:00";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Policies:1:Name"] = "dup";
+            c["ApiPipeline:RateLimiting:Policies:1:Kind"] = "FixedWindow";
+            c["ApiPipeline:RateLimiting:Policies:1:PermitLimit"] = "20";
+            c["ApiPipeline:RateLimiting:Policies:1:Window"] = "00:00:30";
+            c["ApiPipeline:RateLimiting:Policies:1:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:1:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -234,14 +234,14 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "sliding";
-            c["RateLimitingOptions:Policies:0:Name"] = "sliding";
-            c["RateLimitingOptions:Policies:0:Kind"] = "SlidingWindow";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "10";
-            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "60";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "sliding";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "sliding";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "SlidingWindow";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "10";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:01:00";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -253,22 +253,87 @@ public sealed class OptionsValidationTests
     }
 
     /// <summary>
-    /// Verifies that a <c>FixedWindow</c> policy configured without <c>WindowSeconds</c>
+    /// More than 1000 segments fails validation: each request reads every segment, and a segment
+    /// shorter than a millisecond cannot be counted.
+    /// </summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1001")]
+    [InlineData("2147483647")]
+    public async Task RateLimiting_SlidingWindow_SegmentsPerWindow_OutOfRange_Fails_Validation(string segments)
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(SlidingWindowConfig(segments));
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage("*SegmentsPerWindow*");
+    }
+
+    /// <summary>The bounds themselves pass; at 1000 segments a one-second window has 1 ms segments.</summary>
+    [Theory]
+    [InlineData("1")]
+    [InlineData("1000")]
+    public async Task RateLimiting_SlidingWindow_SegmentsPerWindow_AtBounds_Passes_Validation(string segments)
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(SlidingWindowConfig(segments));
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().NotThrowAsync();
+    }
+
+    private static Dictionary<string, string?> SlidingWindowConfig(string segments) =>
+        TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "sliding";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "sliding";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "SlidingWindow";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "10";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:00:01";
+            c["ApiPipeline:RateLimiting:Policies:0:SegmentsPerWindow"] = segments;
+        });
+
+    /// <summary>
+    /// Configuration binds an enum from its number too, so <c>"9"</c> binds to a value with no
+    /// member: an <c>AnonymousFallback</c> of 3 would act as a shared bucket, a <c>Kind</c> of 9
+    /// would skip the window checks and fail every request. A value that is no member fails startup.
+    /// </summary>
+    [Theory]
+    [InlineData("ApiPipeline:RateLimiting:AnonymousFallback", "AnonymousFallback", "Reject, RateLimit, Allow")]
+    [InlineData("ApiPipeline:RateLimiting:Policies:0:Kind", "Kind", "FixedWindow, SlidingWindow, Concurrency, TokenBucket")]
+    [InlineData("ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder", "QueueProcessingOrder", "OldestFirst, NewestFirst")]
+    public async Task RateLimiting_UndefinedEnumValue_Fails_Validation(string key, string setting, string allowed)
+    {
+        var config = TestAppBuilder.WithRateLimiting();
+        config[key] = "9";
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.MapGet("/test", () => "ok");
+
+        var act = () => app.StartAsync();
+        await act.Should().ThrowAsync<OptionsValidationException>()
+            .WithMessage($"*{setting} (9)*{allowed}*");
+    }
+
+    /// <summary>
+    /// Verifies that a <c>FixedWindow</c> policy configured without <c>Window</c>
     /// causes an <see cref="OptionsValidationException"/> at startup, because that field
     /// is required to define the window duration.
     /// </summary>
     [Fact]
-    public async Task RateLimiting_FixedWindow_Without_WindowSeconds_Fails_Validation()
+    public async Task RateLimiting_FixedWindow_Without_Window_Fails_Validation()
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "strict";
-            c["RateLimitingOptions:Policies:0:Name"] = "strict";
-            c["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "10";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "strict";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "strict";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "FixedWindow";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "10";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -276,7 +341,7 @@ public sealed class OptionsValidationTests
 
         var act = () => app.StartAsync();
         await act.Should().ThrowAsync<OptionsValidationException>()
-            .WithMessage("*WindowSeconds*");
+            .WithMessage("*Window is required*");
     }
 
     /// <summary>
@@ -289,14 +354,14 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "bucket";
-            c["RateLimitingOptions:Policies:0:Name"] = "bucket";
-            c["RateLimitingOptions:Policies:0:Kind"] = "TokenBucket";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "100";
-            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "10";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "bucket";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "bucket";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "TokenBucket";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "100";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:00:10";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -309,7 +374,7 @@ public sealed class OptionsValidationTests
 
     /// <summary>
     /// Verifies that a fully specified <c>TokenBucket</c> policy (including
-    /// <c>TokensPerPeriod</c> and <c>WindowSeconds</c>) passes validation and the
+    /// <c>TokensPerPeriod</c> and <c>Window</c>) passes validation and the
     /// app starts successfully.
     /// </summary>
     [Fact]
@@ -317,15 +382,15 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RateLimitingOptions:Enabled"] = "true";
-            c["RateLimitingOptions:DefaultPolicy"] = "bucket";
-            c["RateLimitingOptions:Policies:0:Name"] = "bucket";
-            c["RateLimitingOptions:Policies:0:Kind"] = "TokenBucket";
-            c["RateLimitingOptions:Policies:0:PermitLimit"] = "100";
-            c["RateLimitingOptions:Policies:0:WindowSeconds"] = "10";
-            c["RateLimitingOptions:Policies:0:TokensPerPeriod"] = "20";
-            c["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            c["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            c["ApiPipeline:RateLimiting:Enabled"] = "true";
+            c["ApiPipeline:RateLimiting:DefaultPolicy"] = "bucket";
+            c["ApiPipeline:RateLimiting:Policies:0:Name"] = "bucket";
+            c["ApiPipeline:RateLimiting:Policies:0:Kind"] = "TokenBucket";
+            c["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "100";
+            c["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:00:10";
+            c["ApiPipeline:RateLimiting:Policies:0:TokensPerPeriod"] = "20";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            c["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -344,7 +409,7 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "false";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "false";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -363,8 +428,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestBodySize"] = "0";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "0";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -383,8 +448,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestHeadersTotalSize"] = "0";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestHeadersTotalSize"] = "0";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -403,8 +468,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestBodySize"] = "10485760"; // 10 MB
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "10485760"; // 10 MB
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -423,8 +488,8 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ForwardLimit"] = "15";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ForwardLimit"] = "15";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -443,19 +508,19 @@ public sealed class OptionsValidationTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ForwardedHeadersOptions:Enabled"] = "true";
-            c["ForwardedHeadersOptions:ClearDefaultProxies"] = "false";
-            c["ForwardedHeadersOptions:EnforceTrustedProxyConfigurationInProduction"] = "true";
+            c["ApiPipeline:ForwardedHeaders:Enabled"] = "true";
+            c["ApiPipeline:ForwardedHeaders:ClearDefaultProxies"] = "false";
+            c["ApiPipeline:ForwardedHeaders:EnforceTrustedProxyConfiguration"] = "true";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
         var act = () =>
         {
-            app.UseApiPipelineForwardedHeaders();
+            app.UseApiPipeline(pipeline => pipeline.WithForwardedHeaders());
             return Task.CompletedTask;
         };
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*EnforceTrustedProxyConfigurationInProduction*");
+            .WithMessage("*EnforceTrustedProxyConfiguration*");
     }
 }

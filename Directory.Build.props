@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
-    <!-- Source Link + embedded PDB (enables source debugging from GitHub without a separate .snupkg). -->
+    <!-- Source Link + embedded PDB (enables source debugging from GitHub without a separate .snupkg).
+         The .NET SDK includes Source Link for GitHub since .NET 8; no package reference needed. -->
     <RepositoryUrl>https://github.com/baps-apps/apipipeline-net.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -11,9 +12,17 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- Fail the build on any package with a known advisory. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+
+    <!-- Reproducible restores: every project commits a packages.lock.json, and CI restores with
+         locked mode, so a dependency (direct or transitive) can only change through a reviewed
+         lock-file diff. Regenerate with `dotnet restore` plus the force-evaluate flag; Dependabot updates the
+         lock files with its own PRs. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
-  </ItemGroup>
 </Project>

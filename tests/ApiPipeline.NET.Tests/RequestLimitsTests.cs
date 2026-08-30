@@ -19,11 +19,11 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestBodySize"] = "10485760";
-            c["RequestLimitsOptions:MaxRequestHeadersTotalSize"] = "32768";
-            c["RequestLimitsOptions:MaxRequestHeaderCount"] = "100";
-            c["RequestLimitsOptions:MaxFormValueCount"] = "1024";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "10485760";
+            c["ApiPipeline:RequestLimits:MaxRequestHeadersTotalSize"] = "32768";
+            c["ApiPipeline:RequestLimits:MaxRequestHeaderCount"] = "100";
+            c["ApiPipeline:RequestLimits:MaxFormValueCount"] = "1024";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -55,8 +55,8 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxFormValueCount"] = "0";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxFormValueCount"] = "0";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config);
@@ -77,12 +77,12 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestBodySize"] = "1024";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "1024";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.MapGet("/test", () => "ok");
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var kestrelConfigurators = app.Services
             .GetServices<Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>>();
@@ -104,12 +104,12 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "false";
-            c["ForwardedHeadersOptions:SuppressServerHeader"] = "true";
+            c["ApiPipeline:RequestLimits:Enabled"] = "false";
+            c["ApiPipeline:RequestLimits:SuppressServerHeader"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.MapGet("/test", () => "ok");
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var kestrelConfigurators = app.Services
             .GetServices<Microsoft.Extensions.Options.IConfigureOptions<Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions>>();
@@ -133,17 +133,17 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxFormValueCount"] = "2";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxFormValueCount"] = "2";
         });
 
-        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addProblemDetails: true);
         app.MapPost("/form", async (HttpContext ctx) =>
         {
             var form = await ctx.Request.ReadFormAsync();
             return Results.Ok(new { Count = form.Count });
         });
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var formData = new FormUrlEncodedContent(new[]
@@ -153,7 +153,7 @@ public sealed class RequestLimitsTests
             new KeyValuePair<string, string>("field3", "value3"),
         });
 
-        var response = await client.PostAsync("/form", formData);
+        var response = await client.PostAsync("/form", formData, TestContext.Current.CancellationToken);
         response.StatusCode.Should().NotBe(HttpStatusCode.OK,
             "form with 3 values should be rejected when MaxFormValueCount = 2");
     }
@@ -166,8 +166,8 @@ public sealed class RequestLimitsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["RequestLimitsOptions:Enabled"] = "true";
-            c["RequestLimitsOptions:MaxRequestBodySize"] = "10485760";
+            c["ApiPipeline:RequestLimits:Enabled"] = "true";
+            c["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "10485760";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.MapPost("/upload", async (HttpContext ctx) =>
@@ -176,13 +176,13 @@ public sealed class RequestLimitsTests
             var body = await reader.ReadToEndAsync();
             return Results.Ok(new { Length = body.Length });
         });
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var payload = new string('x', 100);
         var content = new StringContent(payload, Encoding.UTF8, "text/plain");
 
-        var response = await client.PostAsync("/upload", content);
+        var response = await client.PostAsync("/upload", content, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

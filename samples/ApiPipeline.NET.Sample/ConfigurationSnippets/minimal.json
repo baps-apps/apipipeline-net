@@ -1,10 +1,28 @@
 {
-  "RateLimitingOptions": { "Enabled": false },
-  "ResponseCompressionOptions": { "Enabled": false },
-  "ResponseCachingOptions": { "Enabled": false },
-  "SecurityHeadersOptions": { "Enabled": false },
-  "CorsOptions": { "Enabled": false },
-  "ApiVersionDeprecationOptions": { "Enabled": false },
-  "RequestLimitsOptions": { "Enabled": false },
-  "ForwardedHeadersOptions": { "Enabled": false }
+  "ApiPipeline": {
+    "RateLimiting": {
+      "Enabled": false
+    },
+    "ResponseCompression": {
+      "Enabled": false
+    },
+    "OutputCaching": {
+      "Enabled": false
+    },
+    "SecurityHeaders": {
+      "Enabled": false
+    },
+    "Cors": {
+      "Enabled": false
+    },
+    "VersionDeprecation": {
+      "Enabled": false
+    },
+    "RequestLimits": {
+      "Enabled": false
+    },
+    "ForwardedHeaders": {
+      "Enabled": false
+    }
+  }
 }

@@ -1,5 +1,4 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +7,7 @@ using Microsoft.AspNetCore.TestHost;
 namespace ApiPipeline.NET.Tests;
 
 /// <summary>
-/// Tests for IApiPipelineBuilder — verifies phase ordering and builder contract.
+/// Tests for ApiPipelineBuilder — the builder contract. Ordering is covered by PipelineCompositionTests.
 /// </summary>
 public sealed class PipelineBuilderTests
 {
@@ -21,9 +20,9 @@ public sealed class PipelineBuilderTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
         });
-        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addProblemDetails: true);
 
         app.UseApiPipeline(pipeline => pipeline
             .WithAuthentication()
@@ -33,64 +32,32 @@ public sealed class PipelineBuilderTests
         app.MapGet("/secure", [Authorize] () => Results.Ok("secret"))
             .WithMetadata(new ResponseCacheAttribute { Duration = 60 });
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
         var client = app.GetTestClient();
 
         // Unauthenticated request must get 401, not a cached 200
-        var unauthResponse = await client.GetAsync("/secure");
+        var unauthResponse = await client.GetAsync("/secure", TestContext.Current.CancellationToken);
         unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     /// <summary>
-    /// Verifies that calling With* methods in any order produces the correct pipeline order.
-    /// Registering WithResponseCaching before WithAuthentication must still apply auth first.
+    /// A phase never requested is never added: without <c>WithHttpsRedirection()</c>, a plain HTTP
+    /// request reaches the endpoint.
     /// </summary>
     [Fact]
-    public async Task UseApiPipeline_Order_Of_With_Calls_Does_Not_Affect_Pipeline_Order()
-    {
-        var config = TestAppBuilder.MinimalConfig(c =>
-        {
-            c["ResponseCachingOptions:Enabled"] = "true";
-        });
-        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
-
-        // Deliberately register in wrong order — builder must fix it
-        app.UseApiPipeline(pipeline => pipeline
-            .WithResponseCaching()   // registered first but must execute AFTER auth
-            .WithAuthorization()
-            .WithAuthentication());
-
-        app.MapGet("/secure", [Authorize] () => Results.Ok("secret"))
-            .WithMetadata(new ResponseCacheAttribute { Duration = 60 });
-
-        await app.StartAsync();
-        var client = app.GetTestClient();
-
-        var unauthResponse = await client.GetAsync("/secure");
-        unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
-            "even when WithResponseCaching is declared before WithAuthentication, auth must run first");
-    }
-
-    /// <summary>
-    /// Verifies that Skip methods prevent a middleware from being added.
-    /// </summary>
-    [Fact]
-    public async Task UseApiPipeline_Skip_Prevents_Middleware_Registration()
+    public async Task UseApiPipeline_UnrequestedMiddleware_IsNotRegistered()
     {
         var config = TestAppBuilder.MinimalConfig();
         await using var app = await TestAppBuilder.CreateAppAsync(config);
 
-        // If HTTPS redirection were active, HTTP requests would be redirected
-        // By skipping it, HTTP requests pass through
-        app.UseApiPipeline(pipeline => pipeline
-            .WithHttpsRedirection()
-            .SkipHttpsRedirection());  // skip overrides with
+        app.UseApiPipeline(pipeline => pipeline.WithCorrelationId());
 
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

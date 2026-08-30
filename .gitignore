@@ -41,3 +41,14 @@ coverage*.info
 .cursor/
 .terraform/
 
+
+## BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+.performance-local/
+
+## Python (scripts/)
+__pycache__/
+*.py[cod]
+
+## Local code-intelligence index (CodeGraph)
+.codegraph/

@@ -1,5 +1,5 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -24,22 +24,23 @@ public sealed class PipelineOrderingTests
         // Verifies that auth is checked BEFORE the cache can replay a response.
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
         });
-        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addProblemDetails: true);
 
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.UseResponseCaching();
+        app.UseApiPipeline(pipeline => pipeline
+            .WithAuthentication()
+            .WithAuthorization()
+            .WithResponseCaching());
 
         app.MapGet("/secure", [Authorize] () => Results.Ok("secret"))
             .WithMetadata(new ResponseCacheAttribute { Duration = 60 });
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
         var client = app.GetTestClient();
 
         // Unauthenticated request should get 401, not a cached 200
-        var unauthResponse = await client.GetAsync("/secure");
+        var unauthResponse = await client.GetAsync("/secure", TestContext.Current.CancellationToken);
         unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -56,29 +57,30 @@ public sealed class PipelineOrderingTests
         // 2. A subsequent unauthenticated request must still get 401, not the cached 200.
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
         });
-        await using var app = await TestAppBuilder.CreateAppAsync(config, addExceptionHandler: true);
+        await using var app = await TestAppBuilder.CreateAppAsync(config, addProblemDetails: true);
 
         // Auth BEFORE caching — the correct, safe ordering.
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.UseResponseCaching();
+        app.UseApiPipeline(pipeline => pipeline
+            .WithAuthentication()
+            .WithAuthorization()
+            .WithResponseCaching());
 
         app.MapGet("/secure", [Authorize] () => Results.Ok("secret"))
             .WithMetadata(new ResponseCacheAttribute { Duration = 60 });
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
         var client = app.GetTestClient();
 
         // Step 1: authenticated request — should succeed (200) and warm the cache.
         var authRequest = new HttpRequestMessage(HttpMethod.Get, "/secure");
         authRequest.Headers.Add("Authorization", "Bearer valid-token");
-        var authResponse = await client.SendAsync(authRequest);
+        var authResponse = await client.SendAsync(authRequest, TestContext.Current.CancellationToken);
         authResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Step 2: unauthenticated request — must NOT receive the cached 200.
-        var unauthResponse = await client.GetAsync("/secure");
+        var unauthResponse = await client.GetAsync("/secure", TestContext.Current.CancellationToken);
         unauthResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 }

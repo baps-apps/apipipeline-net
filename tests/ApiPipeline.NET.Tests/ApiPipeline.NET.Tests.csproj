@@ -1,24 +1,32 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- Exercises the obsolete response caching feature on purpose, until it is removed. -->
+    <NoWarn>$(NoWarn);APIPIPELINE001</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CodeStyle.NET" />
-    <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
-    <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\ApiPipeline.NET\ApiPipeline.NET.csproj" />
-    <ProjectReference Include="..\..\src\ApiPipeline.NET.OpenTelemetry\ApiPipeline.NET.OpenTelemetry.csproj" />
+    <ProjectReference Include="..\..\src\ApiPipeline.NET.Versioning\ApiPipeline.NET.Versioning.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Test helpers shared by both test projects. -->
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
 </Project>

@@ -1,4 +1,3 @@
-using ApiPipeline.NET.Extensions;
 using Microsoft.AspNetCore.TestHost;
 
 namespace ApiPipeline.NET.Tests;
@@ -8,8 +7,9 @@ internal static class TestAppBuilder
     public static async Task<WebApplication> CreateAppAsync(
         Dictionary<string, string?> config,
         string? environment = null,
-        bool addExceptionHandler = false,
-        Action<IServiceCollection>? configureServices = null)
+        bool addProblemDetails = false,
+        Action<IServiceCollection>? configureServices = null,
+        string? json = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -18,27 +18,35 @@ internal static class TestAppBuilder
 
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(config);
+        if (json is not null)
+        {
+            // An appsettings.json, for what only JSON can express (an empty list).
+            builder.Configuration.AddJsonStream(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json)));
+        }
 
         builder.Services.AddRouting();
         builder.Services.AddAuthentication(defaultScheme: "Test")
             .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
         builder.Services.AddAuthorization();
         builder.Services
-            .AddCorrelationId()
-            .AddRateLimiting(builder.Configuration)
-            .AddResponseCompression(builder.Configuration)
-            .AddResponseCaching(builder.Configuration)
-            .AddOutputCaching(builder.Configuration)
-            .AddSecurityHeaders(builder.Configuration)
-            .AddCors(builder.Configuration)
-            .AddApiVersionDeprecation(builder.Configuration)
-            .AddRequestLimits(builder.Configuration)
-            .AddForwardedHeaders(builder.Configuration)
-            .AddRequestSizeTracking();
+            .AddApiPipelineCorrelationId(builder.Configuration)
+            .AddApiPipelineRateLimiting(builder.Configuration)
+            .AddApiPipelineResponseCompression(builder.Configuration)
+            .AddApiPipelineResponseCaching(builder.Configuration)
+            .AddApiPipelineOutputCaching(builder.Configuration)
+            .AddApiPipelineSecurityHeaders(builder.Configuration)
+            .AddApiPipelineCors(builder.Configuration)
+            .AddApiPipelineRequestLimits(builder.Configuration)
+            .AddApiPipelineForwardedHeaders(builder.Configuration)
+            .AddApiPipelineEdgeRateLimiting(builder.Configuration)
+            .AddApiPipelineRequestSizeTracking()
+            .AddApiPipelineRequestTimeouts(builder.Configuration);
 
-        if (addExceptionHandler)
+        if (addProblemDetails)
         {
-            builder.Services.AddApiPipelineExceptionHandler();
+            // The application-side error handling the README documents, kept in one place so the
+            // published snippet stays compiled.
+            builder.Services.AddConsumerProblemDetails();
         }
 
         configureServices?.Invoke(builder.Services);
@@ -52,17 +60,16 @@ internal static class TestAppBuilder
     {
         var config = new Dictionary<string, string?>
         {
-            ["RateLimitingOptions:Enabled"] = "false",
+            ["ApiPipeline:RateLimiting:Enabled"] = "false",
             // TestHost does not set RemoteIpAddress — use shared bucket so rate-limit tests
             // exercise permit limits rather than hitting the null-IP Reject guard.
-            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
-            ["ResponseCompressionOptions:Enabled"] = "false",
-            ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeadersOptions:Enabled"] = "false",
-            ["CorsOptions:Enabled"] = "false",
-            ["ApiVersionDeprecationOptions:Enabled"] = "false",
-            ["ForwardedHeadersOptions:Enabled"] = "true",
-            ["OutputCachingOptions:Enabled"] = "false"
+            ["ApiPipeline:RateLimiting:AnonymousFallback"] = "RateLimit",
+            ["ApiPipeline:ResponseCompression:Enabled"] = "false",
+            ["ApiPipeline:ResponseCaching:Enabled"] = "false",
+            ["ApiPipeline:SecurityHeaders:Enabled"] = "false",
+            ["ApiPipeline:Cors:Enabled"] = "false",
+            ["ApiPipeline:ForwardedHeaders:Enabled"] = "true",
+            ["ApiPipeline:OutputCaching:Enabled"] = "false"
         };
 
         configure?.Invoke(config);
@@ -77,14 +84,14 @@ internal static class TestAppBuilder
     {
         return MinimalConfig(config =>
         {
-            config["RateLimitingOptions:Enabled"] = "true";
-            config["RateLimitingOptions:DefaultPolicy"] = defaultPolicy;
-            config["RateLimitingOptions:Policies:0:Name"] = defaultPolicy;
-            config["RateLimitingOptions:Policies:0:Kind"] = kind;
-            config["RateLimitingOptions:Policies:0:PermitLimit"] = permitLimit.ToString();
-            config["RateLimitingOptions:Policies:0:WindowSeconds"] = windowSeconds.ToString();
-            config["RateLimitingOptions:Policies:0:QueueLimit"] = "0";
-            config["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst";
+            config["ApiPipeline:RateLimiting:Enabled"] = "true";
+            config["ApiPipeline:RateLimiting:DefaultPolicy"] = defaultPolicy;
+            config["ApiPipeline:RateLimiting:Policies:0:Name"] = defaultPolicy;
+            config["ApiPipeline:RateLimiting:Policies:0:Kind"] = kind;
+            config["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = permitLimit.ToString();
+            config["ApiPipeline:RateLimiting:Policies:0:Window"] = TimeSpan.FromSeconds(windowSeconds).ToString("c", System.Globalization.CultureInfo.InvariantCulture);
+            config["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0";
+            config["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst";
         });
     }
 
@@ -92,7 +99,7 @@ internal static class TestAppBuilder
     {
         return MinimalConfig(config =>
         {
-            config["SecurityHeadersOptions:Enabled"] = enabled.ToString().ToLowerInvariant();
+            config["ApiPipeline:SecurityHeaders:Enabled"] = enabled.ToString().ToLowerInvariant();
         });
     }
 }

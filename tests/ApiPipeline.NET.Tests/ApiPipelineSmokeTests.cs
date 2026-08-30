@@ -1,5 +1,5 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 
@@ -32,9 +32,9 @@ public sealed class ApiPipelineSmokeTests
         await using var app = builder.Build();
         app.UseApiPipeline(pipeline => pipeline.WithCorrelationId());
         app.MapGet("/ping", () => Results.Ok("pong"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync("/ping");
+        var response = await app.GetTestClient().GetAsync("/ping", TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
     }
@@ -49,47 +49,45 @@ public sealed class ApiPipelineSmokeTests
     {
         await using var app = await TestAppBuilder.CreateAppAsync(new Dictionary<string, string?>
         {
-            ["RateLimitingOptions:Enabled"] = "true",
-            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
-            ["RateLimitingOptions:DefaultPolicy"] = "permissive",
-            ["RateLimitingOptions:Policies:0:Name"] = "strict",
-            ["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow",
-            ["RateLimitingOptions:Policies:0:PermitLimit"] = "5",
-            ["RateLimitingOptions:Policies:0:WindowSeconds"] = "60",
-            ["RateLimitingOptions:Policies:0:QueueLimit"] = "0",
-            ["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst",
-            ["RateLimitingOptions:Policies:1:Name"] = "permissive",
-            ["RateLimitingOptions:Policies:1:Kind"] = "FixedWindow",
-            ["RateLimitingOptions:Policies:1:PermitLimit"] = "5",
-            ["RateLimitingOptions:Policies:1:WindowSeconds"] = "60",
-            ["RateLimitingOptions:Policies:1:QueueLimit"] = "0",
-            ["RateLimitingOptions:Policies:1:QueueProcessingOrder"] = "OldestFirst",
-            ["ResponseCompressionOptions:Enabled"] = "false",
-            ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeadersOptions:Enabled"] = "true",
-            ["CorsOptions:Enabled"] = "true",
-            ["CorsOptions:AllowAllInDevelopment"] = "true",
-            ["ApiVersionDeprecationOptions:Enabled"] = "false",
-            ["RequestLimitsOptions:Enabled"] = "true",
-            ["RequestLimitsOptions:MaxRequestBodySize"] = "1048576",
-            ["RequestLimitsOptions:MaxRequestHeadersTotalSize"] = "32768",
-            ["RequestLimitsOptions:MaxRequestHeaderCount"] = "100",
-            ["RequestLimitsOptions:MaxFormValueCount"] = "1024"
-        }, addExceptionHandler: true);
+            ["ApiPipeline:RateLimiting:Enabled"] = "true",
+            ["ApiPipeline:RateLimiting:AnonymousFallback"] = "RateLimit",
+            ["ApiPipeline:RateLimiting:DefaultPolicy"] = "permissive",
+            ["ApiPipeline:RateLimiting:Policies:0:Name"] = "strict",
+            ["ApiPipeline:RateLimiting:Policies:0:Kind"] = "FixedWindow",
+            ["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "5",
+            ["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:01:00",
+            ["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0",
+            ["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst",
+            ["ApiPipeline:RateLimiting:Policies:1:Name"] = "permissive",
+            ["ApiPipeline:RateLimiting:Policies:1:Kind"] = "FixedWindow",
+            ["ApiPipeline:RateLimiting:Policies:1:PermitLimit"] = "5",
+            ["ApiPipeline:RateLimiting:Policies:1:Window"] = "00:01:00",
+            ["ApiPipeline:RateLimiting:Policies:1:QueueLimit"] = "0",
+            ["ApiPipeline:RateLimiting:Policies:1:QueueProcessingOrder"] = "OldestFirst",
+            ["ApiPipeline:ResponseCompression:Enabled"] = "false",
+            ["ApiPipeline:ResponseCaching:Enabled"] = "false",
+            ["ApiPipeline:SecurityHeaders:Enabled"] = "true",
+            ["ApiPipeline:Cors:Enabled"] = "true",
+            ["ApiPipeline:Cors:AllowAllInDevelopment"] = "true",
+            ["ApiPipeline:RequestLimits:Enabled"] = "true",
+            ["ApiPipeline:RequestLimits:MaxRequestBodySize"] = "1048576",
+            ["ApiPipeline:RequestLimits:MaxRequestHeadersTotalSize"] = "32768",
+            ["ApiPipeline:RequestLimits:MaxRequestHeaderCount"] = "100",
+            ["ApiPipeline:RequestLimits:MaxFormValueCount"] = "1024"
+        }, addProblemDetails: true);
 
-        app.UseCorrelationId();
-        app.UseRateLimiting();
-        app.UseResponseCompression();
-        app.UseResponseCaching();
-        app.UseSecurityHeaders();
-        app.UseApiVersionDeprecation();
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCorrelationId());
+        app.UseApiPipeline(pipeline => pipeline.WithRateLimiting());
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCompression());
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCaching());
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/api/ping", () => Results.Ok("pong"));
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/api/ping");
+        var response = await client.GetAsync("/api/ping", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("X-Correlation-Id").Should().BeTrue();
@@ -105,35 +103,34 @@ public sealed class ApiPipelineSmokeTests
     {
         await using var app = await TestAppBuilder.CreateAppAsync(new Dictionary<string, string?>
         {
-            ["RateLimitingOptions:Enabled"] = "true",
-            ["RateLimitingOptions:AnonymousFallback"] = "RateLimit",
-            ["RateLimitingOptions:DefaultPolicy"] = "strict",
-            ["RateLimitingOptions:Policies:0:Name"] = "strict",
-            ["RateLimitingOptions:Policies:0:Kind"] = "FixedWindow",
-            ["RateLimitingOptions:Policies:0:PermitLimit"] = "1",
-            ["RateLimitingOptions:Policies:0:WindowSeconds"] = "60",
-            ["RateLimitingOptions:Policies:0:QueueLimit"] = "0",
-            ["RateLimitingOptions:Policies:0:QueueProcessingOrder"] = "OldestFirst",
-            ["RateLimitingOptions:Policies:1:Name"] = "permissive",
-            ["RateLimitingOptions:Policies:1:Kind"] = "FixedWindow",
-            ["RateLimitingOptions:Policies:1:PermitLimit"] = "100",
-            ["RateLimitingOptions:Policies:1:WindowSeconds"] = "60",
-            ["RateLimitingOptions:Policies:1:QueueLimit"] = "0",
-            ["RateLimitingOptions:Policies:1:QueueProcessingOrder"] = "OldestFirst",
-            ["ResponseCompressionOptions:Enabled"] = "false",
-            ["ResponseCachingOptions:Enabled"] = "false",
-            ["SecurityHeadersOptions:Enabled"] = "false",
-            ["CorsOptions:Enabled"] = "false",
-            ["ApiVersionDeprecationOptions:Enabled"] = "false"
-        }, addExceptionHandler: true);
+            ["ApiPipeline:RateLimiting:Enabled"] = "true",
+            ["ApiPipeline:RateLimiting:AnonymousFallback"] = "RateLimit",
+            ["ApiPipeline:RateLimiting:DefaultPolicy"] = "strict",
+            ["ApiPipeline:RateLimiting:Policies:0:Name"] = "strict",
+            ["ApiPipeline:RateLimiting:Policies:0:Kind"] = "FixedWindow",
+            ["ApiPipeline:RateLimiting:Policies:0:PermitLimit"] = "1",
+            ["ApiPipeline:RateLimiting:Policies:0:Window"] = "00:01:00",
+            ["ApiPipeline:RateLimiting:Policies:0:QueueLimit"] = "0",
+            ["ApiPipeline:RateLimiting:Policies:0:QueueProcessingOrder"] = "OldestFirst",
+            ["ApiPipeline:RateLimiting:Policies:1:Name"] = "permissive",
+            ["ApiPipeline:RateLimiting:Policies:1:Kind"] = "FixedWindow",
+            ["ApiPipeline:RateLimiting:Policies:1:PermitLimit"] = "100",
+            ["ApiPipeline:RateLimiting:Policies:1:Window"] = "00:01:00",
+            ["ApiPipeline:RateLimiting:Policies:1:QueueLimit"] = "0",
+            ["ApiPipeline:RateLimiting:Policies:1:QueueProcessingOrder"] = "OldestFirst",
+            ["ApiPipeline:ResponseCompression:Enabled"] = "false",
+            ["ApiPipeline:ResponseCaching:Enabled"] = "false",
+            ["ApiPipeline:SecurityHeaders:Enabled"] = "false",
+            ["ApiPipeline:Cors:Enabled"] = "false"
+        }, addProblemDetails: true);
 
-        app.UseRateLimiting();
+        app.UseApiPipeline(pipeline => pipeline.WithRateLimiting());
         app.MapGet("/api/limited", () => Results.Ok("ok"));
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
         var client = app.GetTestClient();
 
-        (await client.GetAsync("/api/limited")).StatusCode.Should().Be(HttpStatusCode.OK);
-        (await client.GetAsync("/api/limited")).StatusCode.Should().Be((HttpStatusCode)429);
+        (await client.GetAsync("/api/limited", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/api/limited", TestContext.Current.CancellationToken)).StatusCode.Should().Be((HttpStatusCode)429);
     }
 }

@@ -1,7 +1,7 @@
 using System.Net;
+using ApiPipeline.NET.Correlation;
 using ApiPipeline.NET.Cors;
-using ApiPipeline.NET.Extensions;
-using ApiPipeline.NET.Options;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Options;
@@ -26,15 +26,15 @@ public sealed class CorsTests
         var config = TestAppBuilder.MinimalConfig();
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         app.UseRouting();
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Add("Origin", "https://example.com");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
@@ -50,21 +50,21 @@ public sealed class CorsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowAllInDevelopment"] = "true";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "true";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Development);
         app.UseRouting();
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Add("Origin", "https://any-origin.test");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
@@ -79,45 +79,80 @@ public sealed class CorsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowAllInDevelopment"] = "false";
-            c["CorsOptions:AllowedOrigins:0"] = "https://allowed.example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "false";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://allowed.example.com";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
         app.UseRouting();
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
 
         // Allowed origin
         var allowedRequest = new HttpRequestMessage(HttpMethod.Get, "/test");
         allowedRequest.Headers.Add("Origin", "https://allowed.example.com");
-        var allowedResponse = await client.SendAsync(allowedRequest);
+        var allowedResponse = await client.SendAsync(allowedRequest, TestContext.Current.CancellationToken);
         allowedResponse.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
 
         // Disallowed origin
         var deniedRequest = new HttpRequestMessage(HttpMethod.Get, "/test");
         deniedRequest.Headers.Add("Origin", "https://evil.example.com");
-        var deniedResponse = await client.SendAsync(deniedRequest);
+        var deniedResponse = await client.SendAsync(deniedRequest, TestContext.Current.CancellationToken);
         deniedResponse.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
     }
 
     /// <summary>
-    /// Verifies that the default value of <see cref="ApiPipeline.NET.Options.CorsSettings.AllowedHeaders"/>
-    /// is a safe explicit list and does not include a wildcard.
+    /// The correlation headers are exposed to browser JS; <c>AllowedHeaders</c> only covers requests.
+    /// </summary>
+    [Fact]
+    public async Task Cors_Exposes_Correlation_And_Trace_Headers()
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "false";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://allowed.example.com";
+        });
+
+        await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
+        app.UseRouting();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
+        app.UseApiPipeline(pipeline => pipeline.WithCorrelationId());
+        app.MapGet("/test", () => Results.Ok("ok"));
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var client = app.GetTestClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, "/test");
+        request.Headers.Add("Origin", "https://allowed.example.com");
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        response.Headers.Contains("Access-Control-Expose-Headers").Should().BeTrue();
+        var exposed = response.Headers.GetValues("Access-Control-Expose-Headers").ToArray();
+        exposed.Should().Contain(v => v.Contains(CorrelationHeaders.CorrelationId, StringComparison.OrdinalIgnoreCase));
+        exposed.Should().Contain(v => v.Contains(CorrelationHeaders.TraceId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The unconfigured default is <c>null</c>, which applies the safe list in
+    /// <see cref="ApiPipelineCorsOptions.SafeDefaultAllowedHeaders"/> (no wildcard).
     /// </summary>
     [Fact]
     public void CorsSettings_Default_AllowedHeaders_Does_Not_Include_Wildcard()
     {
-        var settings = new ApiPipeline.NET.Options.CorsSettings();
+        var settings = new ApiPipelineCorsOptions();
 
-        settings.AllowedHeaders.Should().NotContain("*");
-        settings.AllowedHeaders.Should().Contain("Content-Type");
-        settings.AllowedHeaders.Should().Contain("Authorization");
-        settings.AllowedHeaders.Should().Contain("X-Correlation-Id");
+        settings.AllowedHeaders.Should().BeNull();
+        settings.AllowedMethods.Should().BeNull();
+
+        ApiPipelineCorsOptions.SafeDefaultAllowedHeaders.Should().NotContain("*");
+        ApiPipelineCorsOptions.SafeDefaultAllowedHeaders.Should()
+            .Contain("Content-Type").And.Contain("Authorization").And.Contain("X-Correlation-Id");
+        ApiPipelineCorsOptions.SafeDefaultAllowedMethods.Should().NotContain("*");
     }
 
     /// <summary>
@@ -130,22 +165,22 @@ public sealed class CorsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowAllInDevelopment"] = "true";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "true";
         });
 
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Development);
         app.UseRouting();
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Options, "/test");
         request.Headers.Add("Origin", "https://example.com");
         request.Headers.Add("Access-Control-Request-Method", "POST");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
         response.Headers.Contains("Access-Control-Allow-Methods").Should().BeTrue();
@@ -158,7 +193,7 @@ public sealed class CorsTests
     [Fact]
     public void CorsSettings_AllowAllInDevelopment_DefaultIs_False()
     {
-        var settings = new ApiPipeline.NET.Options.CorsSettings();
+        var settings = new ApiPipelineCorsOptions();
         settings.AllowAllInDevelopment.Should().BeFalse(
             "wildcard CORS must be explicit opt-in to avoid accidental exposure in staging");
     }
@@ -171,19 +206,19 @@ public sealed class CorsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowedOrigins:0"] = "https://trusted.example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://trusted.example.com";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Add("Origin", "https://trusted.example.com");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeTrue();
     }
 
@@ -195,51 +230,20 @@ public sealed class CorsTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowedOrigins:0"] = "https://trusted.example.com";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowedOrigins:0"] = "https://trusted.example.com";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseCors();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Add("Origin", "https://evil.attacker.com");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.Headers.Contains("Access-Control-Allow-Origin").Should().BeFalse();
-    }
-
-    /// <summary>
-    /// Verifies that CORS policy reflects runtime configuration changes through IOptionsMonitor.
-    /// </summary>
-    [Fact]
-    public async Task Cors_Reload_Updates_AllowedOrigins_Without_Restart()
-    {
-        var monitor = new TestOptionsMonitor(new CorsSettings
-        {
-            Enabled = true,
-            AllowedOrigins = ["https://old.example.com"],
-            AllowedMethods = ["GET"],
-            AllowedHeaders = ["Content-Type"]
-        });
-
-        var provider = new LiveConfigCorsPolicyProvider(monitor, new TestHostEnvironment(Environments.Production));
-        var firstPolicy = await provider.GetPolicyAsync(new DefaultHttpContext(), null);
-        firstPolicy!.Origins.Should().Contain("https://old.example.com");
-
-        monitor.Update(new CorsSettings
-        {
-            Enabled = true,
-            AllowedOrigins = ["https://new.example.com"],
-            AllowedMethods = ["GET"],
-            AllowedHeaders = ["Content-Type"]
-        });
-
-        var secondPolicy = await provider.GetPolicyAsync(new DefaultHttpContext(), null);
-        secondPolicy!.Origins.Should().NotContain("https://old.example.com");
-        secondPolicy.Origins.Should().Contain("https://new.example.com");
     }
 
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
@@ -250,30 +254,4 @@ public sealed class CorsTests
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
-    private sealed class TestOptionsMonitor(CorsSettings initial) : IOptionsMonitor<CorsSettings>
-    {
-        private CorsSettings _current = initial;
-        private event Action<CorsSettings, string?>? Changed;
-
-        public CorsSettings CurrentValue => _current;
-
-        public CorsSettings Get(string? name) => _current;
-
-        public IDisposable OnChange(Action<CorsSettings, string?> listener)
-        {
-            Changed += listener;
-            return new ChangeToken(listener, this);
-        }
-
-        public void Update(CorsSettings next)
-        {
-            _current = next;
-            Changed?.Invoke(next, null);
-        }
-
-        private sealed class ChangeToken(Action<CorsSettings, string?> listener, TestOptionsMonitor monitor) : IDisposable
-        {
-            public void Dispose() => monitor.Changed -= listener;
-        }
-    }
 }

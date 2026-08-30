@@ -1,111 +1,114 @@
 using System.Diagnostics;
-using System.Text.RegularExpressions;
+using ApiPipeline.NET.Correlation;
 using ApiPipeline.NET.Observability;
+using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Middleware;
 
 /// <summary>
-/// ASP.NET Core middleware that ensures every request and response carries a correlation ID.
-/// Incoming correlation IDs are validated against a strict alphanumeric pattern to prevent header injection.
-/// Registered via <c>UseMiddleware&lt;CorrelationIdMiddleware&gt;()</c>
-/// after calling <see cref="Extensions.ServiceCollectionExtensions.AddCorrelationId"/>.
+/// Gives every request and response a correlation id (validated inbound, or generated) and the
+/// W3C trace id of the current <see cref="Activity"/>.
 /// </summary>
-public sealed partial class CorrelationIdMiddleware : IMiddleware
+internal sealed class CorrelationIdMiddleware
 {
-    /// <summary>
-    /// The HTTP header name used to propagate the correlation identifier.
-    /// </summary>
-    public const string HeaderName = "X-Correlation-Id";
+    public const string HeaderName = CorrelationHeaders.CorrelationId;
 
+    public const string TraceHeaderName = CorrelationHeaders.TraceId;
+
+    private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
+    private readonly ApiPipelineCorrelationIdOptions _settings;
+    private readonly ApiPipelineMetrics _metrics;
 
-    [GeneratedRegex(@"^[a-zA-Z0-9\-_.]{1,128}$")]
-    private static partial Regex SafeCorrelationIdPattern();
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CorrelationIdMiddleware"/> class.
-    /// </summary>
-    /// <param name="logger">Logger for diagnostics.</param>
-    public CorrelationIdMiddleware(ILogger<CorrelationIdMiddleware> logger)
+    public CorrelationIdMiddleware(
+        RequestDelegate next,
+        ILogger<CorrelationIdMiddleware> logger,
+        IOptions<ApiPipelineCorrelationIdOptions> settings,
+        ApiPipelineMetrics metrics)
     {
+        _next = next;
         _logger = logger;
+        _settings = settings.Value;
+        _metrics = metrics;
     }
 
-    /// <summary>
-    /// Executes the middleware, attaching a validated correlation ID to the current HTTP context.
-    /// Invalid or missing incoming correlation IDs are replaced with a server-generated value.
-    /// </summary>
-    /// <param name="context">The current HTTP context.</param>
-    /// <param name="next">The next middleware delegate.</param>
-    /// <returns>A task that represents the completion of request processing.</returns>
-    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    public async Task InvokeAsync(HttpContext context)
     {
-        string correlationId;
+        ArgumentNullException.ThrowIfNull(context);
 
-        if (context.Request.Headers.TryGetValue(HeaderName, out var existing)
-            && !string.IsNullOrWhiteSpace(existing))
-        {
-            var incoming = existing.ToString();
-            if (SafeCorrelationIdPattern().IsMatch(incoming))
-            {
-                correlationId = incoming;
-            }
-            else
-            {
-                correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
-                _logger.LogDebug(
-                    "Rejected invalid correlation ID from request header, generated {CorrelationId}",
-                    correlationId);
-            }
-        }
-        else
-        {
-            correlationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
-        }
+        var settings = _settings;
+        var correlationId = ResolveCorrelationId(context, settings);
 
-        context.Items[HeaderName] = correlationId;
+        var activity = Activity.Current;
+        var traceId = activity?.TraceId.ToString();
 
+        context.SetCorrelation(correlationId, traceId);
+
+        // One allocation: the logging scope and the header callback's state.
+        var scope = new CorrelationScope(context, correlationId, traceId, settings.EmitTraceIdHeader);
+
+        // OnStarting, so the headers survive an exception handler's Response.Clear().
         context.Response.OnStarting(static state =>
         {
-            var (ctx, id) = ((HttpContext, string))state;
-            ctx.Response.Headers[HeaderName] = id;
+            var scope = (CorrelationScope)state;
+            var headers = scope.Context.Response.Headers;
+            headers[CorrelationHeaders.CorrelationId] = scope.CorrelationId;
+            if (scope.EmitTraceId && scope.TraceId is { } traceId)
+            {
+                headers[CorrelationHeaders.TraceId] = traceId;
+            }
+
             return Task.CompletedTask;
-        }, (context, correlationId));
+        }, scope);
 
-        ApiPipelineTelemetry.SetCorrelationIdOnCurrentActivity(correlationId);
-        ApiPipelineTelemetry.RecordCorrelationIdProcessed();
+        activity?.SetTag(ApiPipelineTelemetry.CorrelationIdTagName, correlationId);
 
-        using (_logger.BeginScope(new CorrelationScope(correlationId)))
+        using (_logger.BeginScope(scope))
         {
-            await next(context);
+            await _next(context);
         }
     }
 
-    /// <summary>
-    /// Lightweight value-type scope state that avoids per-request array allocation.
-    /// Loggers that accept <see cref="IReadOnlyList{T}"/> of <see cref="KeyValuePair{TKey,TValue}"/>
-    /// can enumerate the single correlation ID entry without heap allocation at the call site.
-    /// </summary>
-    private readonly struct CorrelationScope(string correlationId) : IReadOnlyList<KeyValuePair<string, object?>>
+    private string ResolveCorrelationId(HttpContext context, ApiPipelineCorrelationIdOptions settings)
     {
-        public int Count => 1;
-
-        public KeyValuePair<string, object?> this[int index] => index == 0
-            ? new("CorrelationId", correlationId)
-            : throw new ArgumentOutOfRangeException(nameof(index));
-
-        public Enumerator GetEnumerator() => new(correlationId);
-        IEnumerator<KeyValuePair<string, object?>> IEnumerable<KeyValuePair<string, object?>>.GetEnumerator() => new Enumerator(correlationId);
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => new Enumerator(correlationId);
-
-        public struct Enumerator(string correlationId) : IEnumerator<KeyValuePair<string, object?>>
+        if (!settings.AcceptInboundCorrelationId)
         {
-            private bool _moved;
-            public readonly KeyValuePair<string, object?> Current => new("CorrelationId", correlationId);
-            readonly object System.Collections.IEnumerator.Current => Current;
-            public bool MoveNext() => !_moved && (_moved = true);
-            public void Reset() => _moved = false;
-            public readonly void Dispose() { }
+            return NewCorrelationId();
         }
+
+        if (!context.Request.Headers.TryGetValue(CorrelationHeaders.CorrelationId, out var existing))
+        {
+            return NewCorrelationId();
+        }
+
+        // A repeated header joins with ',', which IsWellFormed rejects.
+        var incoming = existing.ToString();
+        if (incoming.Length > 0 && incoming.Length <= settings.MaxLength && IsWellFormed(incoming))
+        {
+            return incoming;
+        }
+
+        var generated = NewCorrelationId();
+        _metrics.CorrelationIdRejected();
+        _logger.CorrelationIdRejected(generated);
+        return generated;
     }
+
+    /// <summary>Not the trace id, so generated and caller-supplied ids stay distinguishable.</summary>
+    private static string NewCorrelationId() => Guid.NewGuid().ToString("N");
+
+    /// <summary><c>[A-Za-z0-9_.-]</c> only, so untrusted ids cannot inject into logs or headers.</summary>
+    private static bool IsWellFormed(ReadOnlySpan<char> value)
+    {
+        foreach (var c in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(c) && c is not ('-' or '_' or '.'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 }

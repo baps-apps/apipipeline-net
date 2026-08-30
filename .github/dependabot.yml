@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Framework packages move together; a split update usually will not restore.
+      microsoft:
+        patterns: ["Microsoft.*", "System.*"]
+        exclude-patterns: ["Microsoft.Testing.*"]
+      opentelemetry:
+        patterns: ["OpenTelemetry.*"]
+      # One family, released together; transitive pinning keeps Http aligned across the graph.
+      asp-versioning:
+        patterns: ["Asp.Versioning.*"]
+      testing:
+        patterns: ["xunit*", "Microsoft.Testing.*"]
+    ignore:
+      # 8.x changed to a commercial licence; the version is pinned deliberately in
+      # Directory.Packages.props.
+      - dependency-name: FluentAssertions
+        versions: [">=8.0.0"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    # Covers ci.yml and performance.yml action SHAs. Docker digests embedded in
+    # perf/PerformanceImages.cs and perf/load/k6-image.txt require manual review.
+
+  # The SDK pin in global.json (a patch within one feature band, rollForward latestPatch), so a new
+  # SDK feature band arrives as a reviewed PR instead of with whatever the runner image ships.
+  - package-ecosystem: dotnet-sdk
+    directory: "/"
+    schedule:
+      interval: weekly

@@ -1,0 +1,135 @@
+# Publishes packages on a version tag. Runs only in the protected `release` environment, which
+# should require manual approval and hold the publishing credential — replacing the long-lived
+# personal access token the local publish script uses.
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish (must match <Version> in src/Shared/Shared.props)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: read
+      packages: write # also covers reading the private feed during restore
+      # Required by actions/attest-build-provenance to sign the attestation.
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+
+      # The tag (or the version typed into a manual run) must be every package's <Version>, or a
+      # tag v2.1.0 on a commit still at 2.0.0 would publish 2.0.0 under it. Passed through env, not
+      # interpolated into the script: a manual run's input is free text.
+      - name: Release version matches <Version>
+        env:
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
+        run: python3 -I scripts/check-release-version.py "$REQUESTED_VERSION"
+
+      # Fails before anything is built if the API-compatibility baseline is not the release before
+      # this one: a stale baseline would let a break against the previous release ship.
+      - name: API-compatibility baseline is the previous release
+        run: python3 -I scripts/check-api-baseline.py
+
+      # A package ID the documented source mapping does not cover would restore from nuget.org in
+      # consumers' builds, where anyone can publish under it: fail before publishing it.
+      - name: Package source mapping covers every shipped package
+        run: python3 -I scripts/check-source-mapping.py
+
+      # The private feed (CodeStyle.NET analyzer, API-compat baseline) needs credentials, and
+      # NuGet does not read NUGET_AUTH_TOKEN by itself. GITHUB_TOKEN can read another repository's
+      # package only when that package grants this repository access (package settings ->
+      # "Manage Actions access"). Fork PRs get no token and fail here.
+      - name: Authenticate private feed
+        run: >
+          dotnet nuget update source baps-apps-packages
+          --configfile nuget.config
+          --username "${{ github.actor }}"
+          --password "${{ secrets.GITHUB_TOKEN }}"
+          --store-password-in-clear-text
+
+      - name: Restore
+        run: dotnet restore ApiPipeline.NET.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build ApiPipeline.NET.slnx -c Release --no-restore
+
+      # The artifact is only publishable if the tests that gate it actually ran on this commit.
+      - name: Test
+        run: dotnet test --solution ApiPipeline.NET.slnx -c Release --no-build
+
+      - name: Fail on vulnerable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(dotnet list ApiPipeline.NET.slnx package --vulnerable --include-transitive)
+          echo "$output"
+          if echo "$output" | grep -qi "has the following vulnerable packages"; then
+            echo "::error::Vulnerable packages detected — refusing to publish"
+            exit 1
+          fi
+
+      - name: Pack
+        run: dotnet pack ApiPipeline.NET.slnx -c Release --no-build -o artifacts
+
+      - name: Assert packages carry no private-feed dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          for pkg in artifacts/*.nupkg; do
+            if unzip -p "$pkg" '*.nuspec' | grep -q 'id="CodeStyle.NET"'; then
+              echo "::error::$(basename "$pkg") leaks CodeStyle.NET as a public dependency"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: artifacts
+          format: cyclonedx-json
+          artifact-name: sbom.cyclonedx.json
+
+      # Signed, verifiable provenance for every published package: which workflow, from which
+      # commit, on which runner, produced this exact .nupkg. Consumers verify with
+      #   gh attestation verify <file> --repo baps-apps/apipipeline-net
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: artifacts/*.nupkg
+
+      - name: Publish to GitHub Packages
+        env:
+          # Scoped to this workflow run — no long-lived PAT, and no delete:packages scope.
+          NUGET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget add source \
+            --username "${{ github.actor }}" \
+            --password "$NUGET_TOKEN" \
+            --store-password-in-clear-text \
+            --name github-publish \
+            "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source github-publish \
+            --api-key "$NUGET_TOKEN" \
+            --skip-duplicate

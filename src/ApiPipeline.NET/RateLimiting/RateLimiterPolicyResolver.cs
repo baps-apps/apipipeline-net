@@ -1,54 +1,58 @@
 using System.Collections.Frozen;
-using ApiPipeline.NET.Options;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.RateLimiting;
 
-/// <summary>
-/// Singleton resolver for rate limit policies. Wraps <see cref="IOptionsMonitor{T}"/>
-/// to avoid per-request DI scope allocation inside the rate-limiter callback.
-/// </summary>
+/// <summary>Policies, partition scopes and allowed key hashes, precomputed once from the startup options.</summary>
 internal sealed class RateLimiterPolicyResolver
 {
-    private readonly IOptionsMonitor<RateLimitingOptions> _monitor;
-    private volatile PolicySnapshot _snapshot;
+    private readonly Snapshot _snapshot;
 
-    public RateLimiterPolicyResolver(IOptionsMonitor<RateLimitingOptions> monitor)
+    public RateLimiterPolicyResolver(IOptions<ApiPipelineRateLimitingOptions> options)
     {
-        _monitor = monitor;
-        _snapshot = BuildSnapshot(monitor.CurrentValue);
-        _monitor.OnChange(options => _snapshot = BuildSnapshot(options));
+        ArgumentNullException.ThrowIfNull(options);
+
+        _snapshot = Build(options.Value);
     }
 
-    public RateLimitingOptions Current => _snapshot.Options;
+    public ApiPipelineRateLimitingOptions Current => _snapshot.Options;
 
-    public RateLimitPolicy? ResolvePolicy(string policyName)
+    /// <summary>The policy and its scope: name plus limits signature, so a changed limit gets new buckets.</summary>
+    public bool TryResolve(string policyName, out ApiPipelineRateLimitPolicy policy, out string scope)
     {
-        if (string.IsNullOrWhiteSpace(policyName))
+        if (_snapshot.Policies.TryGetValue(policyName, out var entry))
         {
-            return null;
+            (policy, scope) = entry;
+            return true;
         }
 
-        return _snapshot.Policies.TryGetValue(policyName, out var policy)
-            ? policy
-            : null;
+        policy = null!;
+        scope = "-";
+        return false;
     }
 
-    private static PolicySnapshot BuildSnapshot(RateLimitingOptions options)
-    {
-        var policies = new Dictionary<string, RateLimitPolicy>(StringComparer.OrdinalIgnoreCase);
-        foreach (var policy in options.Policies)
-        {
-            if (!string.IsNullOrWhiteSpace(policy.Name))
-            {
-                policies[policy.Name] = policy;
-            }
-        }
+    /// <summary>Whether the hash is allow-listed; anything else falls through to IP.</summary>
+    public bool IsKnownApiKeyHash(string keyHash) => _snapshot.KnownApiKeyHashes.Contains(keyHash);
 
-        return new PolicySnapshot(options, policies.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
-    }
+    public string[] PartitionClaims => _snapshot.PartitionClaims;
 
-    private sealed record PolicySnapshot(
-        RateLimitingOptions Options,
-        FrozenDictionary<string, RateLimitPolicy> Policies);
+    private static Snapshot Build(ApiPipelineRateLimitingOptions options) => new(
+        options,
+        options.Policies
+            .Where(p => !string.IsNullOrWhiteSpace(p.Name))
+            .ToFrozenDictionary(
+                p => p.Name,
+                p => (p, RateLimitPolicySignature.Compute(p)),
+                StringComparer.OrdinalIgnoreCase),
+        (options.KnownApiKeyHashes ?? [])
+            .Where(h => !string.IsNullOrWhiteSpace(h))
+            .Select(h => h.Trim())
+            .ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+        [.. (options.PartitionClaims ?? []).Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim())]);
+
+    private sealed record Snapshot(
+        ApiPipelineRateLimitingOptions Options,
+        FrozenDictionary<string, (ApiPipelineRateLimitPolicy Policy, string Scope)> Policies,
+        FrozenSet<string> KnownApiKeyHashes,
+        string[] PartitionClaims);
 }

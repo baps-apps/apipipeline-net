@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\Shared\Shared.props" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Trimming and Native AOT analyzers on: a base package for every API must not block AOT.
+         Configuration binding and options validation are source-generated (no reflection). -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
+    <OutputType>Library</OutputType>
+    <IsPackable>true</IsPackable>
+    <PackageId>ApiPipeline.NET.RateLimiting.Redis</PackageId>
+    <!-- First released in 2.0.0: while the baseline (Directory.Build.targets) is older there is
+         nothing to compare against, so only the baseline comparison is skipped; package validation
+         still runs its other checks. The comparison starts by itself once the baseline is 2.0.0. -->
+    <ApiCompatFirstVersion>2.0.0</ApiCompatFirstVersion>
+    <Description>Shares ApiPipeline.NET rate limit policies across every replica of an API through Redis, falling back to per-pod limits while Redis is unavailable.</Description>
+    <PackageTags>aspnetcore;api;pipeline;rate-limiting;redis;distributed</PackageTags>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ApiPipeline.NET\ApiPipeline.NET.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="CodeStyle.NET" PrivateAssets="all" ExcludeAssets="runtime" />
+  </ItemGroup>
+</Project>

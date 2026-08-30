@@ -1,20 +1,52 @@
 {
-  "ForwardedHeadersOptions": {
-    "Enabled": true,
-    "ForwardLimit": 2,
-    "ClearDefaultProxies": true,
-    "KnownNetworks": ["10.0.0.0/8"],
-    "KnownProxies": [],
-    "SuppressServerHeader": true
-  },
-  "CorsOptions": {
-    "Enabled": true,
-    "AllowAllInDevelopment": false,
-    "AllowedOrigins": ["https://my-frontend.example.com"],
-    "AllowCredentials": true
-  },
-  "RateLimitingOptions": {
-    "Enabled": true,
-    "AnonymousFallback": "Reject"
+  "ApiPipeline": {
+    "ForwardedHeaders": {
+      "Enabled": true,
+      "ForwardLimit": 1,
+      "ClearDefaultProxies": true,
+      "KnownNetworks": [
+        "10.0.10.0/24"
+      ],
+      "KnownProxies": []
+    },
+    "Cors": {
+      "Enabled": true,
+      "AllowAllInDevelopment": false,
+      "AllowedOrigins": [
+        "https://my-frontend.example.com"
+      ],
+      "AllowCredentials": true
+    },
+    "RateLimiting": {
+      "Enabled": true,
+      "AnonymousFallback": "Reject",
+      "ExcludedPaths": [
+        "/health/live",
+        "/health/ready"
+      ],
+      "ProbeNetworks": [
+        "10.0.0.0/24"
+      ]
+    },
+    "RequestLimits": {
+      "SuppressServerHeader": true,
+      "Enabled": true,
+      "MaxRequestBodySize": 10485760,
+      "MaxRequestHeadersTotalSize": 16384,
+      "MaxRequestHeaderCount": 100,
+      "RequestHeadersTimeout": "00:00:15",
+      "KeepAliveTimeout": "00:01:05",
+      "MaxConcurrentConnections": 2000,
+      "MinRequestBodyDataRateBytesPerSecond": 240,
+      "MinRequestBodyDataRateGracePeriod": "00:00:05"
+    },
+    "RequestTimeouts": {
+      "Enabled": true,
+      "DefaultTimeout": "00:00:30"
+    },
+    "ResponseCompression": {
+      "Enabled": true,
+      "EnableForHttps": true
+    }
   }
 }

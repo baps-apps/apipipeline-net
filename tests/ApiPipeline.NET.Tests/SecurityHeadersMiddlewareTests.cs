@@ -1,12 +1,12 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 
 namespace ApiPipeline.NET.Tests;
 
 /// <summary>
-/// Tests for <c>UseSecurityHeaders</c>, verifying that API-appropriate security headers
+/// Tests for <c>UseApiPipelineSecurityHeaders</c>, verifying that API-appropriate security headers
 /// are applied when enabled, browser-only headers are excluded, HSTS is environment-aware,
 /// and pre-existing headers are not overwritten.
 /// </summary>
@@ -22,12 +22,13 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.WithSecurityHeaders(enabled: true);
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("X-Content-Type-Options").Should().BeTrue();
@@ -36,28 +37,26 @@ public sealed class SecurityHeadersMiddlewareTests
     }
 
     /// <summary>
-    /// Verifies that opt-in headers such as <c>Content-Security-Policy</c> and
-    /// <c>Permissions-Policy</c> are not added by default, since they are only emitted
-    /// when explicitly configured. <c>X-Frame-Options</c> is now enabled by default
-    /// and can be disabled by setting <c>AddXFrameOptions</c> to <c>false</c>.
+    /// <c>Permissions-Policy</c> is opt-in, and <c>X-Frame-Options</c> can be switched off with
+    /// <c>AddXFrameOptions: false</c>.
     /// </summary>
     [Fact]
-    public async Task Does_Not_Include_Browser_Only_Headers()
+    public async Task Does_Not_Include_OptIn_Or_Disabled_Headers()
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeadersOptions:Enabled"] = "true";
-            c["SecurityHeadersOptions:AddXFrameOptions"] = "false";
+            c["ApiPipeline:SecurityHeaders:Enabled"] = "true";
+            c["ApiPipeline:SecurityHeaders:AddXFrameOptions"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
-        response.Headers.Contains("Content-Security-Policy").Should().BeFalse();
         response.Headers.Contains("X-Frame-Options").Should().BeFalse();
         response.Headers.Contains("Permissions-Policy").Should().BeFalse();
     }
@@ -71,12 +70,13 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.WithSecurityHeaders(enabled: false);
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Contains("X-Content-Type-Options").Should().BeFalse();
@@ -96,12 +96,13 @@ public sealed class SecurityHeadersMiddlewareTests
         var config = TestAppBuilder.WithSecurityHeaders(enabled: true);
 
         await using var prodApp = await TestAppBuilder.CreateAppAsync(config, Environments.Production);
-        prodApp.UseSecurityHeaders();
+        prodApp.UseSimulatedHttps();
+        prodApp.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         prodApp.MapGet("/test", () => Results.Ok("ok"));
-        await prodApp.StartAsync();
+        await prodApp.StartAsync(TestContext.Current.CancellationToken);
 
-        var prodClient = prodApp.GetTestClient();
-        var prodResponse = await prodClient.GetAsync("/test");
+        var prodClient = prodApp.GetApiTestClient();
+        var prodResponse = await prodClient.GetAsync("/test", TestContext.Current.CancellationToken);
         prodResponse.Headers.Contains("Strict-Transport-Security").Should().BeTrue();
 
         var hstsValue = prodResponse.Headers.GetValues("Strict-Transport-Security").Single();
@@ -109,12 +110,13 @@ public sealed class SecurityHeadersMiddlewareTests
         hstsValue.Should().Contain("includeSubDomains");
 
         await using var devApp = await TestAppBuilder.CreateAppAsync(config, Environments.Development);
-        devApp.UseSecurityHeaders();
+        devApp.UseSimulatedHttps();
+        devApp.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         devApp.MapGet("/test", () => Results.Ok("ok"));
-        await devApp.StartAsync();
+        await devApp.StartAsync(TestContext.Current.CancellationToken);
 
-        var devClient = devApp.GetTestClient();
-        var devResponse = await devClient.GetAsync("/test");
+        var devClient = devApp.GetApiTestClient();
+        var devResponse = await devClient.GetAsync("/test", TestContext.Current.CancellationToken);
         devResponse.Headers.Contains("Strict-Transport-Security").Should().BeFalse();
     }
 
@@ -128,12 +130,13 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.WithSecurityHeaders(enabled: true);
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         var value = response.Headers.GetValues("X-Content-Type-Options").Single();
         value.Should().Be("nosniff");
@@ -148,12 +151,13 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.WithSecurityHeaders(enabled: true);
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         var value = response.Headers.GetValues("Referrer-Policy").Single();
         value.Should().Be("no-referrer");
@@ -176,12 +180,13 @@ public sealed class SecurityHeadersMiddlewareTests
             await next();
         });
 
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var client = app.GetApiTestClient();
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         var value = response.Headers.GetValues("Referrer-Policy").Single();
         value.Should().Be("strict-origin");
@@ -196,11 +201,12 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         await using var app = await TestAppBuilder.CreateAppAsync(
             TestAppBuilder.WithSecurityHeaders());
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync("/test");
+        var response = await app.GetApiTestClient().GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.Headers.Contains("X-Frame-Options").Should().BeTrue();
         response.Headers.GetValues("X-Frame-Options").Single().Should().Be("DENY");
@@ -215,15 +221,16 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeadersOptions:Enabled"] = "true";
-            c["SecurityHeadersOptions:ContentSecurityPolicy"] = "default-src 'none'";
+            c["ApiPipeline:SecurityHeaders:Enabled"] = "true";
+            c["ApiPipeline:SecurityHeaders:ContentSecurityPolicy"] = "default-src 'none'";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync("/test");
+        var response = await app.GetApiTestClient().GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.Headers.Contains("Content-Security-Policy").Should().BeTrue();
         response.Headers.GetValues("Content-Security-Policy").Single()
@@ -231,22 +238,115 @@ public sealed class SecurityHeadersMiddlewareTests
     }
 
     /// <summary>
-    /// Verifies that <c>Content-Security-Policy</c> is omitted when not configured,
-    /// since the default value is <c>null</c>.
+    /// With no configuration, <c>Content-Security-Policy</c> is the OWASP REST Security Cheat Sheet
+    /// value for API responses: nothing may load, and the response may not be framed. An API
+    /// response rendered as a document by mistake then cannot run script.
     /// </summary>
     [Fact]
-    public async Task SecurityHeaders_Does_Not_Add_CSP_When_Not_Configured()
+    public async Task SecurityHeaders_Csp_DefaultsToTheOwaspApiPolicy()
+    {
+        var response = await GetAsync(TestAppBuilder.WithSecurityHeaders());
+
+        response.Headers.GetValues("Content-Security-Policy").Should()
+            .ContainSingle().Which.Should().Be("default-src 'none'; frame-ancestors 'none'");
+    }
+
+    /// <summary>An empty value sends no <c>Content-Security-Policy</c>, as for <c>CacheControl</c>.</summary>
+    [Fact]
+    public async Task SecurityHeaders_Csp_EmptyValue_OmitsTheHeader()
+    {
+        var response = await GetAsync(
+            TestAppBuilder.WithSecurityHeaders().Also(c => c["ApiPipeline:SecurityHeaders:ContentSecurityPolicy"] = ""));
+
+        response.Headers.Contains("Content-Security-Policy").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// An endpoint that serves HTML (Swagger UI, a status page) sets its own policy, which is
+    /// never overwritten by the default.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Csp_SetByTheEndpoint_IsNotOverwritten()
+    {
+        var response = await GetAsync(TestAppBuilder.WithSecurityHeaders(), context =>
+            context.Response.Headers.ContentSecurityPolicy = "default-src 'self'");
+
+        response.Headers.GetValues("Content-Security-Policy").Should()
+            .ContainSingle().Which.Should().Be("default-src 'self'");
+    }
+
+    /// <summary>
+    /// <c>Cross-Origin-Resource-Policy: same-origin</c> by default (OWASP Secure Headers Project):
+    /// another site cannot pull an API response into its page with a no-cors request.
+    /// </summary>
+    [Fact]
+    public async Task SecurityHeaders_Corp_DefaultsToSameOrigin()
+    {
+        var response = await GetAsync(TestAppBuilder.WithSecurityHeaders());
+
+        response.Headers.GetValues("Cross-Origin-Resource-Policy").Should()
+            .ContainSingle().Which.Should().Be("same-origin");
+    }
+
+    /// <summary>A looser value can be configured, and an empty value sends no header.</summary>
+    [Theory]
+    [InlineData("cross-origin", "cross-origin")]
+    [InlineData("same-site", "same-site")]
+    [InlineData("", null)]
+    public async Task SecurityHeaders_Corp_IsConfigurable(string configured, string? expected)
+    {
+        var response = await GetAsync(
+            TestAppBuilder.WithSecurityHeaders().Also(c => c["ApiPipeline:SecurityHeaders:CrossOriginResourcePolicy"] = configured));
+
+        if (expected is null)
+        {
+            response.Headers.Contains("Cross-Origin-Resource-Policy").Should().BeFalse();
+        }
+        else
+        {
+            response.Headers.GetValues("Cross-Origin-Resource-Policy").Should().ContainSingle().Which.Should().Be(expected);
+        }
+    }
+
+    /// <summary>An endpoint that is meant to be embedded elsewhere sets its own value, which wins.</summary>
+    [Fact]
+    public async Task SecurityHeaders_Corp_SetByTheEndpoint_IsNotOverwritten()
+    {
+        var response = await GetAsync(TestAppBuilder.WithSecurityHeaders(), context =>
+            context.Response.Headers["Cross-Origin-Resource-Policy"] = "cross-origin");
+
+        response.Headers.GetValues("Cross-Origin-Resource-Policy").Should()
+            .ContainSingle().Which.Should().Be("cross-origin");
+    }
+
+    /// <summary>A value browsers do not understand (here a typo) fails startup rather than protecting nothing.</summary>
+    [Fact]
+    public async Task SecurityHeaders_Corp_UnknownValue_FailsStartup()
     {
         await using var app = await TestAppBuilder.CreateAppAsync(
-            TestAppBuilder.WithSecurityHeaders());
-        app.UseSecurityHeaders();
-        app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+            TestAppBuilder.WithSecurityHeaders().Also(c => c["ApiPipeline:SecurityHeaders:CrossOriginResourcePolicy"] = "same_origin"));
 
-        var response = await app.GetTestClient().GetAsync("/test");
+        var start = () => app.StartAsync(TestContext.Current.CancellationToken);
 
-        // CSP is null by default — must not be emitted
-        response.Headers.Contains("Content-Security-Policy").Should().BeFalse();
+        (await start.Should().ThrowAsync<Microsoft.Extensions.Options.OptionsValidationException>())
+            .Which.Message.Should().Contain("CrossOriginResourcePolicy");
+    }
+
+    private static async Task<HttpResponseMessage> GetAsync(
+        Dictionary<string, string?> config,
+        Action<HttpContext>? endpoint = null)
+    {
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
+        app.MapGet("/test", (HttpContext context) =>
+        {
+            endpoint?.Invoke(context);
+            return Results.Ok("ok");
+        });
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        return await app.GetApiTestClient().GetAsync("/test", TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -258,17 +358,18 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeadersOptions:Enabled"] = "true";
-            c["SecurityHeadersOptions:EnableStrictTransportSecurity"] = "true";
-            c["SecurityHeadersOptions:StrictTransportSecurityPreload"] = "true";
+            c["ApiPipeline:SecurityHeaders:Enabled"] = "true";
+            c["ApiPipeline:SecurityHeaders:EnableStrictTransportSecurity"] = "true";
+            c["ApiPipeline:SecurityHeaders:StrictTransportSecurityPreload"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(
             config, environment: "Production");
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync("/test");
+        var response = await app.GetApiTestClient().GetAsync("/test", TestContext.Current.CancellationToken);
 
         var hsts = response.Headers.GetValues("Strict-Transport-Security").Single();
         hsts.Should().Contain("preload");
@@ -283,15 +384,16 @@ public sealed class SecurityHeadersMiddlewareTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["SecurityHeadersOptions:Enabled"] = "true";
-            c["SecurityHeadersOptions:PermissionsPolicy"] = "camera=(), microphone=()";
+            c["ApiPipeline:SecurityHeaders:Enabled"] = "true";
+            c["ApiPipeline:SecurityHeaders:PermissionsPolicy"] = "camera=(), microphone=()";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseSecurityHeaders();
+        app.UseSimulatedHttps();
+        app.UseApiPipeline(pipeline => pipeline.WithSecurityHeaders());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
-        var response = await app.GetTestClient().GetAsync("/test");
+        var response = await app.GetApiTestClient().GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.Headers.Contains("Permissions-Policy").Should().BeTrue();
         response.Headers.GetValues("Permissions-Policy").Single()

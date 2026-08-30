@@ -1,76 +1,44 @@
-using ApiPipeline.NET.Options;
 using Microsoft.Extensions.Options;
 
 namespace ApiPipeline.NET.Middleware;
 
 /// <summary>
-/// ASP.NET Core middleware that applies API-relevant security response headers:
-/// HSTS, X-Content-Type-Options, and Referrer-Policy.
-/// Headers are applied via <c>HttpResponse.OnStarting</c> to ensure they are set
-/// even when downstream components write directly to the response.
+/// Writes the security headers in <c>OnStarting</c>, so short-circuited responses get them too;
+/// a value already set is kept. HSTS is the framework's middleware, added in the same phase.
 /// </summary>
-public sealed class SecurityHeadersMiddleware
+internal sealed class SecurityHeadersMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly IHostEnvironment _environment;
-    private readonly IOptionsMonitor<SecurityHeadersSettings> _settings;
-    private readonly ILogger<SecurityHeadersMiddleware> _logger;
+    private readonly ApiPipelineSecurityHeadersOptions _settings;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SecurityHeadersMiddleware"/> class.
-    /// </summary>
-    /// <param name="next">The next middleware in the ASP.NET Core pipeline.</param>
-    /// <param name="environment">The current hosting environment.</param>
-    /// <param name="settings">The configured security header settings (supports hot-reload).</param>
-    /// <param name="logger">Logger for diagnostics.</param>
+    // Built once; its state is the HttpContext, so no per-request closure.
+    private readonly Func<object, Task> _applyHeaders;
+
     public SecurityHeadersMiddleware(
         RequestDelegate next,
-        IHostEnvironment environment,
-        IOptionsMonitor<SecurityHeadersSettings> settings,
-        ILogger<SecurityHeadersMiddleware> logger)
+        IOptions<ApiPipelineSecurityHeadersOptions> settings)
     {
         _next = next;
-        _environment = environment;
-        _settings = settings;
-        _logger = logger;
-    }
-
-    /// <summary>
-    /// Executes the middleware, scheduling security headers via <c>HttpResponse.OnStarting</c>
-    /// before continuing the pipeline.
-    /// </summary>
-    /// <param name="context">The current HTTP context.</param>
-    /// <returns>A task that represents the completion of request processing.</returns>
-    public async Task Invoke(HttpContext context)
-    {
-        var settings = _settings.CurrentValue;
-        if (!settings.Enabled)
+        _settings = settings.Value;
+        _applyHeaders = state =>
         {
-            await _next(context);
-            return;
-        }
-
-        var isDevelopment = _environment.IsDevelopment();
-
-        context.Response.OnStarting(static state =>
-        {
-            var (ctx, s, isDev, logger) =
-                ((HttpContext, SecurityHeadersSettings, bool, ILogger<SecurityHeadersMiddleware>))state;
-            ApplyHeaders(ctx, s, isDev, logger);
+            ApplyHeaders(((HttpContext)state).Response.Headers, _settings);
             return Task.CompletedTask;
-        }, (context, settings, isDevelopment, _logger));
-
-        await _next(context);
+        };
     }
 
-    private static void ApplyHeaders(
-        HttpContext context,
-        SecurityHeadersSettings settings,
-        bool isDevelopment,
-        ILogger<SecurityHeadersMiddleware> logger)
+    /// <remarks>Not <c>async</c>: nothing runs after <c>next</c>.</remarks>
+    public Task InvokeAsync(HttpContext context)
     {
-        var headers = context.Response.Headers;
+        ArgumentNullException.ThrowIfNull(context);
 
+        context.Response.OnStarting(_applyHeaders, context);
+
+        return _next(context);
+    }
+
+    private static void ApplyHeaders(IHeaderDictionary headers, ApiPipelineSecurityHeadersOptions settings)
+    {
         if (settings.AddXContentTypeOptionsNoSniff && !headers.ContainsKey("X-Content-Type-Options"))
         {
             headers["X-Content-Type-Options"] = "nosniff";
@@ -81,23 +49,20 @@ public sealed class SecurityHeadersMiddleware
             headers["Referrer-Policy"] = settings.ReferrerPolicy;
         }
 
-        if (settings.EnableStrictTransportSecurity && !isDevelopment && !headers.ContainsKey("Strict-Transport-Security"))
+        if (!string.IsNullOrWhiteSpace(settings.CacheControl) && !headers.ContainsKey("Cache-Control"))
         {
-            var hsts = $"max-age={settings.StrictTransportSecurityMaxAgeSeconds}";
-            if (settings.StrictTransportSecurityIncludeSubDomains)
-            {
-                hsts += "; includeSubDomains";
-            }
-            if (settings.StrictTransportSecurityPreload)
-            {
-                hsts += "; preload";
-            }
-            headers["Strict-Transport-Security"] = hsts;
+            headers.CacheControl = settings.CacheControl;
         }
 
         if (settings.AddXFrameOptions && !headers.ContainsKey("X-Frame-Options"))
         {
             headers["X-Frame-Options"] = settings.XFrameOptionsValue;
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.CrossOriginResourcePolicy)
+            && !headers.ContainsKey("Cross-Origin-Resource-Policy"))
+        {
+            headers["Cross-Origin-Resource-Policy"] = settings.CrossOriginResourcePolicy;
         }
 
         if (!string.IsNullOrWhiteSpace(settings.ContentSecurityPolicy)
@@ -111,7 +76,5 @@ public sealed class SecurityHeadersMiddleware
         {
             headers["Permissions-Policy"] = settings.PermissionsPolicy;
         }
-
-        logger.LogDebug("Security headers applied to response");
     }
 }

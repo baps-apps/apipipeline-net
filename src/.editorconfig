@@ -1,0 +1,14 @@
+# Applies to the shipped packages only (tests and samples are outside src/).
+
+[*.cs]
+# Logging goes through [LoggerMessage] source-generated methods (see each package's Log.cs):
+# the level is checked before arguments are formatted or boxed, and templates are parsed at
+# compile time. TreatWarningsAsErrors turns these into build errors.
+dotnet_diagnostic.CA1848.severity = warning
+dotnet_diagnostic.CA1873.severity = warning
+dotnet_diagnostic.CA2254.severity = warning
+dotnet_diagnostic.CA1727.severity = warning
+
+# Public collections: IList<T> (as ASP.NET Core's own options do), never List<T> or arrays.
+dotnet_diagnostic.CA1002.severity = warning
+dotnet_diagnostic.CA1819.severity = warning

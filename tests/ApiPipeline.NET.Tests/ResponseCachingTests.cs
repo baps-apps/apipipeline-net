@@ -1,5 +1,5 @@
 using System.Net;
-using ApiPipeline.NET.Extensions;
+using ApiPipeline.NET.Pipeline;
 using FluentAssertions;
 using Microsoft.AspNetCore.TestHost;
 
@@ -19,8 +19,8 @@ public sealed class ResponseCachingTests
         var callCount = 0;
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
-            c["ResponseCachingOptions:SizeLimitBytes"] = "52428800";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:SizeLimitBytes"] = "52428800";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         ((IApplicationBuilder)app).UseResponseCaching();
@@ -29,13 +29,13 @@ public sealed class ResponseCachingTests
             Interlocked.Increment(ref callCount);
             return Results.Ok(new { Value = "cached-data" });
         }).CacheOutput();
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
 
-        var response1 = await client.GetAsync("/cacheable");
+        var response1 = await client.GetAsync("/cacheable", TestContext.Current.CancellationToken);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body1 = await response1.Content.ReadAsStringAsync();
+        var body1 = await response1.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         body1.Should().Contain("cached-data");
     }
 
@@ -48,21 +48,21 @@ public sealed class ResponseCachingTests
         var callCount = 0;
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "false";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseResponseCaching();
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCaching());
         app.MapGet("/data", () =>
         {
             Interlocked.Increment(ref callCount);
             return Results.Ok(new { Value = callCount });
         });
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
 
-        await client.GetAsync("/data");
-        await client.GetAsync("/data");
+        await client.GetAsync("/data", TestContext.Current.CancellationToken);
+        await client.GetAsync("/data", TestContext.Current.CancellationToken);
 
         callCount.Should().Be(2, "each request should invoke the handler when caching is disabled");
     }
@@ -76,8 +76,8 @@ public sealed class ResponseCachingTests
         var callCount = 0;
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
-            c["ResponseCachingOptions:SizeLimitBytes"] = "52428800";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:SizeLimitBytes"] = "52428800";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
         ((IApplicationBuilder)app).UseResponseCaching();
@@ -87,14 +87,14 @@ public sealed class ResponseCachingTests
             ctx.Response.Headers.CacheControl = "no-store";
             return Results.Ok(new { Value = "no-store-data" });
         });
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
 
-        var response1 = await client.GetAsync("/nocache");
+        var response1 = await client.GetAsync("/nocache", TestContext.Current.CancellationToken);
         response1.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var response2 = await client.GetAsync("/nocache");
+        var response2 = await client.GetAsync("/nocache", TestContext.Current.CancellationToken);
         response2.StatusCode.Should().Be(HttpStatusCode.OK);
 
         callCount.Should().BeGreaterOrEqualTo(2, "no-store responses should not be cached");
@@ -106,7 +106,7 @@ public sealed class ResponseCachingTests
     [Fact]
     public void ResponseCachingSettings_SizeLimitBytes_Zero_Should_Not_Be_Valid()
     {
-        var settings = new ApiPipeline.NET.Options.ResponseCachingSettings
+        var settings = new ApiPipelineResponseCachingOptions
         {
             SizeLimitBytes = 0
         };
@@ -125,7 +125,7 @@ public sealed class ResponseCachingTests
     [Fact]
     public void ResponseCachingSettings_SizeLimitBytes_Positive_Is_Valid()
     {
-        var settings = new ApiPipeline.NET.Options.ResponseCachingSettings
+        var settings = new ApiPipelineResponseCachingOptions
         {
             SizeLimitBytes = 1048576
         };
@@ -147,22 +147,22 @@ public sealed class ResponseCachingTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
-            c["ResponseCachingOptions:SizeLimitBytes"] = "52428800";
-            c["CorsOptions:Enabled"] = "true";
-            c["CorsOptions:AllowAllInDevelopment"] = "true";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:SizeLimitBytes"] = "52428800";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "true";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseCors();
-        app.UseResponseCaching();
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCaching());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
         var request = new HttpRequestMessage(HttpMethod.Get, "/test");
         request.Headers.Add("Origin", "https://example.com");
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Vary.Should().Contain("Origin");
@@ -177,19 +177,54 @@ public sealed class ResponseCachingTests
     {
         var config = TestAppBuilder.MinimalConfig(c =>
         {
-            c["ResponseCachingOptions:Enabled"] = "true";
-            c["ResponseCachingOptions:SizeLimitBytes"] = "52428800";
-            c["CorsOptions:Enabled"] = "false";
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
+            c["ApiPipeline:ResponseCaching:SizeLimitBytes"] = "52428800";
+            c["ApiPipeline:Cors:Enabled"] = "false";
         });
         await using var app = await TestAppBuilder.CreateAppAsync(config);
-        app.UseResponseCaching();
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCaching());
         app.MapGet("/test", () => Results.Ok("ok"));
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var client = app.GetTestClient();
-        var response = await client.GetAsync("/test");
+        var response = await client.GetAsync("/test", TestContext.Current.CancellationToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         response.Headers.Vary.Should().NotContain("Origin");
+    }
+
+    /// <summary>
+    /// The check for an existing <c>Origin</c> in <c>Vary</c> matches whole field names. A name that
+    /// merely contains "Origin" (<c>X-Forwarded-Origin</c>) must not stop <c>Origin</c> being added,
+    /// or a response cached for one origin is served to another; an existing <c>origin</c> or
+    /// <c>*</c> needs nothing added.
+    /// </summary>
+    [Theory]
+    [InlineData("X-Forwarded-Origin", "X-Forwarded-Origin, Origin")]
+    [InlineData("Accept-Encoding, origin", "Accept-Encoding, origin")]
+    [InlineData("*", "*")]
+    public async Task VaryOrigin_MatchesWholeFieldNames(string endpointVary, string expectedVary)
+    {
+        var config = TestAppBuilder.MinimalConfig(c =>
+        {
+            c["ApiPipeline:ResponseCaching:Enabled"] = "true";
+            c["ApiPipeline:Cors:Enabled"] = "true";
+            c["ApiPipeline:Cors:AllowAllInDevelopment"] = "true";
+        });
+        await using var app = await TestAppBuilder.CreateAppAsync(config);
+        app.UseApiPipeline(pipeline => pipeline.WithCors());
+        app.UseApiPipeline(pipeline => pipeline.WithResponseCaching());
+        app.MapGet("/test", (HttpContext context) =>
+        {
+            context.Response.Headers.Vary = endpointVary;
+            return Results.Ok("ok");
+        });
+        await app.StartAsync(TestContext.Current.CancellationToken);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/test");
+        request.Headers.Add("Origin", "https://example.com");
+        var response = await app.GetTestClient().SendAsync(request, TestContext.Current.CancellationToken);
+
+        string.Join(", ", response.Headers.Vary).Should().Be(expectedVary);
     }
 }

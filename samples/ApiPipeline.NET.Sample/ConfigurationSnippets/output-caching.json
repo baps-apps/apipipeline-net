@@ -1,0 +1,10 @@
+{
+  "ApiPipeline": {
+    "OutputCaching": {
+      "Enabled": true,
+      "DefaultExpiration": "00:00:30",
+      "SizeLimitBytes": 104857600,
+      "MaximumBodySizeBytes": 1048576
+    }
+  }
+}

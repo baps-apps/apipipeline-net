@@ -1,0 +1,3 @@
+Method,Job,Runtime,IterationCount,WarmupCount,Mode,PayloadSize,Mean,Error,StdDev,Allocated
+Execute,Short,.NET 10.0,3,3,miss,1024,1.25 µs,0.01 µs,0.01 µs,1.5 KB
+Execute,Short,.NET 10.0,3,3,hit,1024,2 ms,0.01 ms,0.01 ms,1 MB

@@ -2,22 +2,32 @@ using ApiPipeline.NET.Observability;
 
 namespace ApiPipeline.NET.Middleware;
 
-/// <summary>
-/// Thin middleware that records incoming request body size to the
-/// <see cref="ApiPipelineTelemetry.RequestBodyBytesHistogram"/> metric when
-/// a <c>Content-Length</c> header is present. Has no effect on the request or response.
-/// Place early in the pipeline — after <c>UseForwardedHeaders</c>, before business logic.
-/// </summary>
-public sealed class RequestSizeMiddleware : IMiddleware
+/// <summary>Records <c>Content-Length</c> to <c>apipipeline.request.body.size</c>, by method and route template.</summary>
+internal sealed class RequestSizeMiddleware
 {
-    /// <inheritdoc />
-    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    private readonly RequestDelegate _next;
+    private readonly ApiPipelineMetrics _metrics;
+
+    public RequestSizeMiddleware(RequestDelegate next, ApiPipelineMetrics metrics)
     {
+        _next = next;
+        _metrics = metrics;
+    }
+
+    /// <remarks>Not <c>async</c>: nothing runs after <c>next</c>.</remarks>
+    public Task InvokeAsync(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
         if (context.Request.ContentLength is { } length and > 0)
         {
-            ApiPipelineTelemetry.RecordRequestBodyBytes(length);
+            _metrics.RequestBodySize(
+                length,
+                HttpMethodTag.Normalize(context.Request.Method),
+                // The template, not the path: bounded cardinality.
+                (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText);
         }
 
-        await next(context);
+        return _next(context);
     }
 }
