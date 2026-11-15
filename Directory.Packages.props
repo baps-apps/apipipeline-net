@@ -14,7 +14,7 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="CodeStyle.NET" Version="1.0.0" />
     <!-- Exact pin, keep the brackets: FluentAssertions 8+ is commercially licensed (Xceed). -->
-    <PackageVersion Include="FluentAssertions" Version="[7.1.0]" />
+    <PackageVersion Include="FluentAssertions" Version="[7.2.2]" />
     <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.15" />
     <!-- FakeTimeProvider: tests drive timeouts, cooldowns and timers instead of waiting on the clock. -->
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
