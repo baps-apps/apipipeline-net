@@ -4,9 +4,9 @@
     "net10.0": {
       "CodeStyle.NET": {
         "type": "Direct",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "XiogNTF1EO4wXJVsYr4UPuVvhCcBRwXkISK0Vn57vNaQ1rcGr5S7+2LdrQhDPnlI5pNCRZEgi3UwYYBt+OK8AA=="
+        "requested": "[2.0.0, )",
+        "resolved": "2.0.0",
+        "contentHash": "Jp9bad/2Dc84iGlnwFijvTdwZFvvEs+hRAAMkjRYxLyw7nkYmy8ejosryoqjfUZcnMPj2W4T6AwxAhhW1jJ3bA=="
       },
       "FluentAssertions": {
         "type": "Direct",
