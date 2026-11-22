@@ -24,7 +24,7 @@
     <!-- The version Caching.NET uses, so an API that installs both resolves one version. -->
     <PackageVersion Include="StackExchange.Redis" Version="3.4.35" />
     <!-- Real Redis for the ApiPipeline.NET.RateLimiting.Redis tests (Docker). -->
-    <PackageVersion Include="Testcontainers.Redis" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.17.0" />
     <!-- xUnit v3 (v2 is in maintenance mode) on Microsoft.Testing.Platform, which global.json makes
          the dotnet test runner. VSTest (Microsoft.NET.Test.Sdk, xunit.runner.visualstudio) is not
          used: MTP v2 refuses VSTest mode on the .NET 10 SDK. -->
